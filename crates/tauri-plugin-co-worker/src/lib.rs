@@ -91,6 +91,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::tool_create_dir,
             commands::tool_search,
             commands::tool_preview_write,
+            commands::tool_run_command,
             commands::get_auto_allow,
             commands::set_auto_allow,
             // Agent loop.

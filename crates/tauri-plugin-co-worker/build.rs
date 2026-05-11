@@ -32,6 +32,7 @@ const COMMANDS: &[&str] = &[
     "tool_create_dir",
     "tool_search",
     "tool_preview_write",
+    "tool_run_command",
     "get_auto_allow",
     "set_auto_allow",
     "agent_send",

@@ -369,6 +369,135 @@ pub async fn search(
 }
 
 // ---------------------------------------------------------------------------
+// Run command — executes an external binary inside the workspace.
+//
+// Hard rules baked in below:
+//   - direct exec, no shell — model passes `command` + `args[]` separately,
+//     so a string like "rm -rf / && flutter create demo" is impossible
+//     (whitespace would land inside args[0])
+//   - workspace root as cwd
+//   - stdin closed (interactive prompts fail loudly instead of hanging)
+//   - configurable timeout, hard-ceiling 5 min, with `kill_on_drop`
+//   - stdout + stderr each truncated to 32 KiB before going back to the
+//     model to keep context predictable
+//   - PATH inherited from the desktop process so `flutter`/`cargo`/`npm`/
+//     `git` resolve the way the user expects
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunCommandResult {
+    pub command: String,
+    pub args: Vec<String>,
+    pub cwd: String,
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+    pub timed_out: bool,
+    pub duration_ms: u64,
+}
+
+const RUN_DEFAULT_TIMEOUT_SECS: u64 = 30;
+const RUN_MAX_TIMEOUT_SECS: u64 = 300;
+const RUN_MAX_STREAM_BYTES: usize = 32 * 1024;
+
+pub async fn run_command(
+    root: &Path,
+    command: &str,
+    args: &[String],
+    timeout_secs: Option<u64>,
+) -> Result<RunCommandResult, Error> {
+    if command.is_empty() {
+        return Err(Error::BadArgs("command must not be empty".into()));
+    }
+    if command.contains(['|', '&', ';', '>', '<', '`']) {
+        return Err(Error::BadArgs(
+            "shell metacharacters are not allowed in `command`; pass the binary name only and use `args` for parameters".into(),
+        ));
+    }
+
+    let timeout = std::time::Duration::from_secs(
+        timeout_secs
+            .unwrap_or(RUN_DEFAULT_TIMEOUT_SECS)
+            .min(RUN_MAX_TIMEOUT_SECS)
+            .max(1),
+    );
+
+    let cwd = root.canonicalize().map_err(Error::Io)?;
+
+    let mut cmd = tokio::process::Command::new(command);
+    cmd.args(args)
+        .current_dir(&cwd)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+
+    let started = std::time::Instant::now();
+
+    let child = cmd.spawn();
+    let child = match child {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Error::BadArgs(format!(
+                "could not spawn `{command}`: {e} (is it on PATH?)"
+            )));
+        }
+    };
+
+    let wait_with_output = child.wait_with_output();
+    let output = match tokio::time::timeout(timeout, wait_with_output).await {
+        Ok(Ok(out)) => out,
+        Ok(Err(e)) => return Err(Error::Io(e)),
+        Err(_) => {
+            return Ok(RunCommandResult {
+                command: command.to_string(),
+                args: args.to_vec(),
+                cwd: cwd.display().to_string(),
+                exit_code: None,
+                stdout: String::new(),
+                stderr: format!("(killed after {}s timeout)", timeout.as_secs()),
+                stdout_truncated: false,
+                stderr_truncated: false,
+                timed_out: true,
+                duration_ms: started.elapsed().as_millis() as u64,
+            });
+        }
+    };
+
+    let (stdout, stdout_trunc) = truncate_stream(&output.stdout);
+    let (stderr, stderr_trunc) = truncate_stream(&output.stderr);
+
+    Ok(RunCommandResult {
+        command: command.to_string(),
+        args: args.to_vec(),
+        cwd: cwd.display().to_string(),
+        exit_code: output.status.code(),
+        stdout,
+        stderr,
+        stdout_truncated: stdout_trunc,
+        stderr_truncated: stderr_trunc,
+        timed_out: false,
+        duration_ms: started.elapsed().as_millis() as u64,
+    })
+}
+
+fn truncate_stream(bytes: &[u8]) -> (String, bool) {
+    if bytes.len() <= RUN_MAX_STREAM_BYTES {
+        (String::from_utf8_lossy(bytes).into_owned(), false)
+    } else {
+        let head = &bytes[..RUN_MAX_STREAM_BYTES];
+        let mut s = String::from_utf8_lossy(head).into_owned();
+        s.push_str(&format!(
+            "\n… (truncated {} bytes)\n",
+            bytes.len() - RUN_MAX_STREAM_BYTES
+        ));
+        (s, true)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Diff preview for write_file approval cards.
 // ---------------------------------------------------------------------------
 

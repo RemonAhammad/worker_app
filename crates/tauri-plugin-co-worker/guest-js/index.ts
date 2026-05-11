@@ -189,6 +189,19 @@ export interface WritePreview {
   new_bytes: number
 }
 
+export interface RunCommandResult {
+  command: string
+  args: string[]
+  cwd: string
+  exit_code: number | null
+  stdout: string
+  stderr: string
+  stdout_truncated: boolean
+  stderr_truncated: boolean
+  timed_out: boolean
+  duration_ms: number
+}
+
 // --- Agent loop ---
 
 export interface ParsedToolCall {
@@ -411,6 +424,25 @@ export function toolPreviewWrite(
   content: string,
 ): Promise<WritePreview> {
   return call('tool_preview_write', { path, content })
+}
+
+/**
+ * Run a single program inside the workspace. No shell — `command` and
+ * `args[]` are passed to `tokio::process::Command` directly. 30s default
+ * timeout, 5min ceiling. stdout/stderr capped at 32 KiB each. Mutating —
+ * the desktop UI should gate this behind the same approval card as
+ * `write_file`.
+ */
+export function toolRunCommand(
+  command: string,
+  args: string[],
+  opts?: { timeoutSecs?: number },
+): Promise<RunCommandResult> {
+  return call('tool_run_command', {
+    command,
+    args,
+    timeoutSecs: opts?.timeoutSecs,
+  })
 }
 
 // ----- persistent allow-list -----

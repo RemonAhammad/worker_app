@@ -10,8 +10,10 @@
 
   function shortArgs(args: Record<string, unknown>): string {
     // Show the most identifying fields first.
+    if (typeof args.command === 'string') return commandLine(args)
     if (typeof args.path === 'string') return args.path
     if (typeof args.from === 'string') return `${args.from} → ${args.to ?? '?'}`
+    if (typeof args.query === 'string') return `"${args.query}"`
     return JSON.stringify(args).slice(0, 80)
   }
 
@@ -34,8 +36,20 @@
       case 'delete_path': return '🗑'
       case 'move_path': return '↔️'
       case 'create_dir': return '📁'
+      case 'search': return '🔍'
+      case 'run_command': return '⌨️'
       default: return '🔧'
     }
+  }
+
+  function commandLine(args: Record<string, unknown>): string {
+    const cmd = typeof args.command === 'string' ? args.command : '?'
+    const list = Array.isArray(args.args) ? (args.args as unknown[]) : []
+    const parts = list.map((x) => {
+      const s = String(x)
+      return /[\s"'`$]/.test(s) ? JSON.stringify(s) : s
+    })
+    return [cmd, ...parts].join(' ')
   }
 
   let expanded = $state<Record<string, boolean>>({})
@@ -89,7 +103,15 @@
       <code>{c.name}</code>
     </div>
 
-    {#if $approvalDiff}
+    {#if c.name === 'run_command'}
+      {@const args = c.arguments as Record<string, unknown>}
+      {@const desc = typeof args.description === 'string' ? args.description : null}
+      {#if desc}
+        <div class="diff-meta"><span class="dim">{desc}</span></div>
+      {/if}
+      <pre class="cmd">$ {commandLine(args)}</pre>
+      <div class="diff-meta"><span class="dim">runs inside the workspace · no shell · 30s timeout</span></div>
+    {:else if $approvalDiff}
       {@const d = $approvalDiff}
       <div class="diff-meta">
         <code>{d.path}</code>
@@ -276,6 +298,18 @@
     max-height: 320px;
     overflow: auto;
     white-space: pre-wrap;
+  }
+  .cmd {
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--accent);
+    white-space: pre-wrap;
+    word-break: break-all;
   }
   /* Color-code diff lines. We render a leading `+ `, `- `, or `  ` per
      line; CSS doesn't have line-prefix selectors, so this is just a tint

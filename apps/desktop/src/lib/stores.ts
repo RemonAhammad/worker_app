@@ -39,6 +39,7 @@ import {
   toolMovePath,
   toolPreviewWrite,
   toolReadFile,
+  toolRunCommand,
   toolSearch,
   toolWriteFile,
   updateSession,
@@ -607,7 +608,8 @@ function isMutating(name: string): boolean {
     name === 'append_file' ||
     name === 'delete_path' ||
     name === 'move_path' ||
-    name === 'create_dir'
+    name === 'create_dir' ||
+    name === 'run_command'
   )
 }
 
@@ -668,6 +670,26 @@ async function runTool(call: ParsedToolCall): Promise<string> {
         caseInsensitive: a.case_insensitive === true,
       })
       return JSON.stringify(r)
+    }
+    case 'run_command': {
+      const cmd = asString(a.command)
+      const rawArgs = Array.isArray(a.args)
+        ? (a.args as unknown[]).map((x) => String(x))
+        : []
+      const r = await toolRunCommand(cmd, rawArgs, {
+        timeoutSecs: asNumber(a.timeout_secs),
+      })
+      // Compress what we hand back to the model: exit code + truncated
+      // streams. The model rarely benefits from megabytes of stdout.
+      return JSON.stringify({
+        exit_code: r.exit_code,
+        timed_out: r.timed_out,
+        duration_ms: r.duration_ms,
+        stdout: r.stdout,
+        stderr: r.stderr,
+        stdout_truncated: r.stdout_truncated,
+        stderr_truncated: r.stderr_truncated,
+      })
     }
     default:
       throw new Error(`unknown tool: ${call.name}`)

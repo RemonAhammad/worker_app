@@ -32,6 +32,7 @@ Default permissions for the co-worker plugin. Allows every command in the surfac
 - `allow-tool-create-dir`
 - `allow-tool-search`
 - `allow-tool-preview-write`
+- `allow-tool-run-command`
 - `allow-get-auto-allow`
 - `allow-set-auto-allow`
 - `allow-agent-send`

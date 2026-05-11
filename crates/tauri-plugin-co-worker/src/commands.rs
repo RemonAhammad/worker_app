@@ -334,6 +334,17 @@ pub async fn tool_preview_write(
     fs_tools::preview_write(&root, &path, &content).await
 }
 
+#[tauri::command]
+pub async fn tool_run_command(
+    state: State<'_, Arc<PluginState>>,
+    command: String,
+    args: Vec<String>,
+    timeout_secs: Option<u64>,
+) -> Result<fs_tools::RunCommandResult> {
+    let root = workspace_root(&state).await?;
+    fs_tools::run_command(&root, &command, &args, timeout_secs).await
+}
+
 
 // ----- persistent allow-list -----
 
