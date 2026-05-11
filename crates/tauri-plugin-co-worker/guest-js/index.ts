@@ -128,6 +128,70 @@ export interface PluginError {
   message: string
 }
 
+// --- Filesystem tools ---
+
+export interface ListDirEntry {
+  name: string
+  kind: 'dir' | 'file' | 'symlink'
+  size_bytes: number | null
+}
+
+export interface ListDirResult {
+  path: string
+  entries: ListDirEntry[]
+}
+
+export interface ReadFileResult {
+  path: string
+  content: string
+  truncated: boolean
+  bytes_read: number
+}
+
+export interface WriteFileResult {
+  path: string
+  bytes_written: number
+  created: boolean
+}
+
+export interface DeleteResult {
+  path: string
+  was_dir: boolean
+}
+
+export interface MoveResult {
+  from: string
+  to: string
+}
+
+export interface CreateDirResult {
+  path: string
+}
+
+// --- Agent loop ---
+
+export interface ParsedToolCall {
+  id: string
+  name: string
+  arguments: Record<string, unknown>
+}
+
+export interface ToolResultPayload {
+  id: string
+  ok: boolean
+  content: string
+}
+
+export type AgentResponse =
+  | { kind: 'message'; message: Message; usage: Usage }
+  | {
+      kind: 'tool_calls'
+      assistant_id: string
+      calls: ParsedToolCall[]
+      prose: string
+      usage: Usage
+    }
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -254,4 +318,86 @@ export function createMemory(content: string): Promise<Memory> {
 
 export function deleteMemory(id: string): Promise<void> {
   return call('delete_memory', { id })
+}
+
+// ----- workspace -----
+
+/** Get the current workspace directory, or `null` if none is set. */
+export function getWorkspace(): Promise<string | null> {
+  return call('get_workspace')
+}
+
+/** Set or clear (`path = null`) the workspace directory. Persisted across
+ *  app launches. */
+export function setWorkspace(path: string | null): Promise<string | null> {
+  return call('set_workspace', { path })
+}
+
+// ----- filesystem tools (sandboxed to the workspace) -----
+
+export function toolListDir(path: string): Promise<ListDirResult> {
+  return call('tool_list_dir', { path })
+}
+
+export function toolReadFile(
+  path: string,
+  maxBytes?: number,
+): Promise<ReadFileResult> {
+  return call('tool_read_file', { path, maxBytes })
+}
+
+export function toolWriteFile(
+  path: string,
+  content: string,
+): Promise<WriteFileResult> {
+  return call('tool_write_file', { path, content })
+}
+
+export function toolAppendFile(
+  path: string,
+  content: string,
+): Promise<WriteFileResult> {
+  return call('tool_append_file', { path, content })
+}
+
+export function toolDeletePath(path: string): Promise<DeleteResult> {
+  return call('tool_delete_path', { path })
+}
+
+export function toolMovePath(from: string, to: string): Promise<MoveResult> {
+  return call('tool_move_path', { from, to })
+}
+
+export function toolCreateDir(path: string): Promise<CreateDirResult> {
+  return call('tool_create_dir', { path })
+}
+
+// ----- agent loop -----
+
+export function agentSend(
+  sessionId: string,
+  content: string,
+  opts?: { maxTokens?: number; temperature?: number },
+): Promise<AgentResponse> {
+  return call('agent_send', {
+    sessionId,
+    content,
+    maxTokens: opts?.maxTokens,
+    temperature: opts?.temperature,
+  })
+}
+
+export function agentContinue(
+  sessionId: string,
+  assistantId: string,
+  results: ToolResultPayload[],
+  opts?: { maxTokens?: number; temperature?: number },
+): Promise<AgentResponse> {
+  return call('agent_continue', {
+    sessionId,
+    assistantId,
+    results,
+    maxTokens: opts?.maxTokens,
+    temperature: opts?.temperature,
+  })
 }

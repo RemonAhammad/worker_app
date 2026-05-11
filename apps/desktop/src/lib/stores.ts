@@ -14,24 +14,38 @@
 import { writable, type Writable } from 'svelte/store'
 
 import {
+  agentContinue,
+  agentSend,
   createMemory,
   createSession,
   deleteMemory as apiDeleteMemory,
   deleteSession as apiDeleteSession,
   getSession,
+  getWorkspace,
   health,
   listMemories,
   listSessions,
   loadModel,
   modelCatalog,
   sendMessage,
+  setWorkspace as apiSetWorkspace,
+  toolAppendFile,
+  toolCreateDir,
+  toolDeletePath,
+  toolListDir,
+  toolMovePath,
+  toolReadFile,
+  toolWriteFile,
   updateSession,
+  type AgentResponse,
   type HealthResponse,
   type Memory,
   type Message,
   type ModelCatalog,
   type ModelCatalogEntry,
+  type ParsedToolCall,
   type Session,
+  type ToolResultPayload,
 } from './api'
 
 export interface SendOptions {
@@ -53,6 +67,36 @@ export const modelCatalogError: Writable<string | null> = writable(null)
 /** True while a model is being downloaded / loaded. While set, the chat
  *  composer disables and the model switcher shows a spinner. */
 export const isLoadingModel: Writable<boolean> = writable(false)
+
+/** Active workspace directory, or `null` if not set. Sync'd with the
+ *  plugin's persisted state at startup. */
+export const workspace: Writable<string | null> = writable(null)
+
+/**
+ * Steps of an in-flight agent turn shown inline in the chat alongside the
+ * regular message bubbles. Cleared when the loop terminates (either with a
+ * final assistant message or because the user cancelled).
+ */
+export type AgentStep =
+  | { kind: 'assistant_prose'; id: string; content: string }
+  | {
+      kind: 'tool_call'
+      id: string
+      call: ParsedToolCall
+      status: 'pending' | 'running' | 'done' | 'denied' | 'error'
+      result?: string
+      error?: string
+    }
+
+export const agentSteps: Writable<AgentStep[]> = writable([])
+/** When set, the UI shows an Allow/Deny card. `resolve` is called on click. */
+export const pendingApproval: Writable<{
+  call: ParsedToolCall
+  resolve: (allowed: boolean) => void
+} | null> = writable(null)
+/** Auto-allow all mutating tool calls for the remainder of this turn. The
+ *  user can flip this on a permission prompt to lower friction. */
+export const autoApprove: Writable<boolean> = writable(false)
 
 /** Refresh the conversation list. */
 export async function refreshSessions(): Promise<Session[]> {
@@ -173,6 +217,19 @@ export async function switchModel(entry: ModelCatalogEntry): Promise<void> {
   }
 }
 
+/** Re-read the workspace from the plugin. */
+export async function refreshWorkspace(): Promise<string | null> {
+  const w = await getWorkspace()
+  workspace.set(w)
+  return w
+}
+
+/** Set or clear the workspace. `null` disables agentic mode. */
+export async function setWorkspaceRoot(path: string | null): Promise<void> {
+  const updated = await apiSetWorkspace(path)
+  workspace.set(updated)
+}
+
 /** Add a memory and refresh the list. */
 export async function addMemory(content: string): Promise<Memory> {
   const m = await createMemory(content)
@@ -194,9 +251,14 @@ export async function removeMemory(id: string): Promise<void> {
  *
  * Pushes both the optimistic user message and the eventual assistant reply
  * into `activeMessages`.
+ *
+ * When a workspace is configured, this runs the agent loop instead of a
+ * plain message round-trip — tool calls bubble up via `agentSteps` and
+ * `pendingApproval`.
  */
 export async function sendInActive(content: string, opts?: SendOptions): Promise<void> {
   let sid = currentActive()
+  const hasWorkspace = currentWorkspace() !== null
 
   // First message of a new conversation? Materialize the session now with
   // a title derived from the prompt.
@@ -206,7 +268,6 @@ export async function sendInActive(content: string, opts?: SendOptions): Promise
     pendingSystemPrompt = null
     sid = s.id
     activeSessionId.set(sid)
-    // Refresh the sidebar so the new row appears immediately.
     void refreshSessions()
   }
 
@@ -222,20 +283,189 @@ export async function sendInActive(content: string, opts?: SendOptions): Promise
   activeMessages.update((ms) => [...ms, optimistic])
   isGenerating.set(true)
   lastError.set(null)
+  agentSteps.set([])
+  autoApprove.set(false)
 
   try {
-    const resp = await sendMessage(sid, content, opts)
-    activeMessages.update((ms) => [...ms, resp.message])
-    // Bump the session up the list — its updated_at moved.
+    if (hasWorkspace) {
+      await runAgentLoop(sid, content, opts)
+    } else {
+      const resp = await sendMessage(sid, content, opts)
+      activeMessages.update((ms) => [...ms, resp.message])
+    }
     await refreshSessions()
   } catch (err) {
     const message = formatError(err)
     lastError.set(message)
-    // Drop the optimistic user message back out so the user can retry.
     activeMessages.update((ms) => ms.filter((m) => m.id !== optimistic.id))
   } finally {
     isGenerating.set(false)
+    agentSteps.set([])
+    pendingApproval.set(null)
   }
+}
+
+const MAX_TOOL_ROUNDTRIPS = 10
+
+/** Walk the agent loop until the model produces a final assistant message
+ *  or we exceed the round-trip cap. Tool execution and permission prompts
+ *  happen inline. */
+async function runAgentLoop(
+  sessionId: string,
+  content: string,
+  opts?: SendOptions,
+): Promise<void> {
+  let response: AgentResponse = await agentSend(sessionId, content, opts)
+  for (let round = 0; round < MAX_TOOL_ROUNDTRIPS; round++) {
+    if (response.kind === 'message') {
+      const final = response
+      activeMessages.update((ms) => [...ms, final.message])
+      return
+    }
+    // tool_calls branch: show prose (if any), then for each call: prompt
+    // for approval if mutating, execute, stash the result.
+    const turn = response
+    const prose = turn.prose.trim()
+    if (prose.length > 0) {
+      agentSteps.update((s) => [
+        ...s,
+        { kind: 'assistant_prose', id: crypto.randomUUID(), content: prose },
+      ])
+    }
+
+    const results: ToolResultPayload[] = []
+    for (const call of turn.calls) {
+      const stepId = crypto.randomUUID()
+      agentSteps.update((s) => [
+        ...s,
+        { kind: 'tool_call', id: stepId, call, status: 'pending' },
+      ])
+
+      let allowed = true
+      if (isMutating(call.name) && !currentAutoApprove()) {
+        allowed = await askApproval(call)
+      }
+
+      if (!allowed) {
+        updateStep(stepId, { status: 'denied', error: 'user denied' })
+        results.push({
+          id: call.id,
+          ok: false,
+          content: 'The user denied this tool call.',
+        })
+        continue
+      }
+
+      updateStep(stepId, { status: 'running' })
+      try {
+        const out = await runTool(call)
+        updateStep(stepId, { status: 'done', result: out })
+        results.push({ id: call.id, ok: true, content: out })
+      } catch (err) {
+        const msg = formatError(err)
+        updateStep(stepId, { status: 'error', error: msg })
+        results.push({ id: call.id, ok: false, content: msg })
+      }
+    }
+
+    response = await agentContinue(sessionId, turn.assistant_id, results, opts)
+  }
+  // Hit the cap.
+  agentSteps.update((s) => [
+    ...s,
+    {
+      kind: 'assistant_prose',
+      id: crypto.randomUUID(),
+      content: `(stopped after ${MAX_TOOL_ROUNDTRIPS} tool round-trips)`,
+    },
+  ])
+}
+
+function isMutating(name: string): boolean {
+  return (
+    name === 'write_file' ||
+    name === 'append_file' ||
+    name === 'delete_path' ||
+    name === 'move_path' ||
+    name === 'create_dir'
+  )
+}
+
+function updateStep(id: string, patch: Partial<Extract<AgentStep, { kind: 'tool_call' }>>) {
+  agentSteps.update((steps) =>
+    steps.map((s) => (s.kind === 'tool_call' && s.id === id ? { ...s, ...patch } : s)),
+  )
+}
+
+function askApproval(call: ParsedToolCall): Promise<boolean> {
+  return new Promise((resolve) => {
+    pendingApproval.set({
+      call,
+      resolve: (allowed) => {
+        pendingApproval.set(null)
+        resolve(allowed)
+      },
+    })
+  })
+}
+
+/** Dispatch a single tool call to the plugin's sandboxed implementations. */
+async function runTool(call: ParsedToolCall): Promise<string> {
+  const a = call.arguments as Record<string, unknown>
+  switch (call.name) {
+    case 'list_dir': {
+      const r = await toolListDir(asString(a.path, '.'))
+      return JSON.stringify(r)
+    }
+    case 'read_file': {
+      const r = await toolReadFile(asString(a.path), asNumber(a.max_bytes))
+      return JSON.stringify(r)
+    }
+    case 'write_file': {
+      const r = await toolWriteFile(asString(a.path), asString(a.content, ''))
+      return JSON.stringify(r)
+    }
+    case 'append_file': {
+      const r = await toolAppendFile(asString(a.path), asString(a.content, ''))
+      return JSON.stringify(r)
+    }
+    case 'delete_path': {
+      const r = await toolDeletePath(asString(a.path))
+      return JSON.stringify(r)
+    }
+    case 'move_path': {
+      const r = await toolMovePath(asString(a.from), asString(a.to))
+      return JSON.stringify(r)
+    }
+    case 'create_dir': {
+      const r = await toolCreateDir(asString(a.path))
+      return JSON.stringify(r)
+    }
+    default:
+      throw new Error(`unknown tool: ${call.name}`)
+  }
+}
+
+function asString(v: unknown, fallback?: string): string {
+  if (typeof v === 'string') return v
+  if (fallback !== undefined) return fallback
+  throw new Error(`missing required string argument`)
+}
+
+function asNumber(v: unknown): number | undefined {
+  return typeof v === 'number' ? v : undefined
+}
+
+function currentWorkspace(): string | null {
+  let v: string | null = null
+  workspace.subscribe((x) => (v = x))()
+  return v
+}
+
+function currentAutoApprove(): boolean {
+  let v = false
+  autoApprove.subscribe((x) => (v = x))()
+  return v
 }
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,17 @@ const COMMANDS: &[&str] = &[
     "list_memories",
     "create_memory",
     "delete_memory",
+    "get_workspace",
+    "set_workspace",
+    "tool_list_dir",
+    "tool_read_file",
+    "tool_write_file",
+    "tool_append_file",
+    "tool_delete_path",
+    "tool_move_path",
+    "tool_create_dir",
+    "agent_send",
+    "agent_continue",
 ];
 
 fn main() {

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-tool-delete-path"
+description = "Enables the tool_delete_path command without any pre-configured scope."
+commands.allow = ["tool_delete_path"]
+
+[[permission]]
+identifier = "deny-tool-delete-path"
+description = "Denies the tool_delete_path command without any pre-configured scope."
+commands.deny = ["tool_delete_path"]

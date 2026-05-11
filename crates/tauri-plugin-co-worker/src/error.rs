@@ -12,6 +12,24 @@ pub enum Error {
 
     #[error("invalid url: {0}")]
     InvalidUrl(String),
+
+    #[error("workspace is not configured")]
+    NoWorkspace,
+
+    #[error("invalid path: {0}")]
+    ToolBadPath(String),
+
+    #[error("path `{0}` is outside the workspace root `{1}`")]
+    ToolOutsideWorkspace(String, String),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("invalid arguments: {0}")]
+    BadArgs(String),
 }
 
 impl Serialize for Error {
@@ -22,9 +40,9 @@ impl Serialize for Error {
         use serde::ser::SerializeStruct;
         let (kind, message) = match self {
             Error::Client(e) => match e {
-                co_worker_client::ClientError::Api {
-                    code, message, ..
-                } => (code.clone(), message.clone()),
+                co_worker_client::ClientError::Api { code, message, .. } => {
+                    (code.clone(), message.clone())
+                }
                 co_worker_client::ClientError::Http(err) => {
                     ("http".into(), err.to_string())
                 }
@@ -36,6 +54,14 @@ impl Serialize for Error {
                 }
             },
             Error::InvalidUrl(u) => ("invalid_url".into(), u.clone()),
+            Error::NoWorkspace => ("no_workspace".into(), self.to_string()),
+            Error::ToolBadPath(_) => ("tool_bad_path".into(), self.to_string()),
+            Error::ToolOutsideWorkspace(_, _) => {
+                ("tool_outside_workspace".into(), self.to_string())
+            }
+            Error::Io(_) => ("io".into(), self.to_string()),
+            Error::Json(_) => ("json".into(), self.to_string()),
+            Error::BadArgs(_) => ("bad_args".into(), self.to_string()),
         };
         let mut s = serializer.serialize_struct("Error", 2)?;
         s.serialize_field("kind", &kind)?;

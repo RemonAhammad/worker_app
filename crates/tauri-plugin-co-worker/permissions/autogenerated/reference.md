@@ -21,6 +21,17 @@ Default permissions for the co-worker plugin. Allows every command in the surfac
 - `allow-list-memories`
 - `allow-create-memory`
 - `allow-delete-memory`
+- `allow-get-workspace`
+- `allow-set-workspace`
+- `allow-tool-list-dir`
+- `allow-tool-read-file`
+- `allow-tool-write-file`
+- `allow-tool-append-file`
+- `allow-tool-delete-path`
+- `allow-tool-move-path`
+- `allow-tool-create-dir`
+- `allow-agent-send`
+- `allow-agent-continue`
 
 ## Permission Table
 
@@ -30,6 +41,58 @@ Default permissions for the co-worker plugin. Allows every command in the surfac
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`co-worker:allow-agent-continue`
+
+</td>
+<td>
+
+Enables the agent_continue command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-agent-continue`
+
+</td>
+<td>
+
+Denies the agent_continue command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-agent-send`
+
+</td>
+<td>
+
+Enables the agent_send command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-agent-send`
+
+</td>
+<td>
+
+Denies the agent_send command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -242,6 +305,32 @@ Denies the get_session command without any pre-configured scope.
 <tr>
 <td>
 
+`co-worker:allow-get-workspace`
+
+</td>
+<td>
+
+Enables the get_workspace command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-get-workspace`
+
+</td>
+<td>
+
+Denies the get_workspace command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `co-worker:allow-health`
 
 </td>
@@ -443,6 +532,214 @@ Enables the set_base_url command without any pre-configured scope.
 <td>
 
 Denies the set_base_url command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-set-workspace`
+
+</td>
+<td>
+
+Enables the set_workspace command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-set-workspace`
+
+</td>
+<td>
+
+Denies the set_workspace command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-append-file`
+
+</td>
+<td>
+
+Enables the tool_append_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-append-file`
+
+</td>
+<td>
+
+Denies the tool_append_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-create-dir`
+
+</td>
+<td>
+
+Enables the tool_create_dir command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-create-dir`
+
+</td>
+<td>
+
+Denies the tool_create_dir command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-delete-path`
+
+</td>
+<td>
+
+Enables the tool_delete_path command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-delete-path`
+
+</td>
+<td>
+
+Denies the tool_delete_path command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-list-dir`
+
+</td>
+<td>
+
+Enables the tool_list_dir command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-list-dir`
+
+</td>
+<td>
+
+Denies the tool_list_dir command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-move-path`
+
+</td>
+<td>
+
+Enables the tool_move_path command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-move-path`
+
+</td>
+<td>
+
+Denies the tool_move_path command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-read-file`
+
+</td>
+<td>
+
+Enables the tool_read_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-read-file`
+
+</td>
+<td>
+
+Denies the tool_read_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-write-file`
+
+</td>
+<td>
+
+Enables the tool_write_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-write-file`
+
+</td>
+<td>
+
+Denies the tool_write_file command without any pre-configured scope.
 
 </td>
 </tr>

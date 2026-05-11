@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-tool-create-dir"
+description = "Enables the tool_create_dir command without any pre-configured scope."
+commands.allow = ["tool_create_dir"]
+
+[[permission]]
+identifier = "deny-tool-create-dir"
+description = "Denies the tool_create_dir command without any pre-configured scope."
+commands.deny = ["tool_create_dir"]

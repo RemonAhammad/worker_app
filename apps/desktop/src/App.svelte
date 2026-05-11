@@ -6,11 +6,13 @@
   import StatusBar from './lib/components/StatusBar.svelte'
   import MemoriesDrawer from './lib/components/MemoriesDrawer.svelte'
   import ModelSwitcher from './lib/components/ModelSwitcher.svelte'
+  import WorkspacePill from './lib/components/WorkspacePill.svelte'
   import {
     pingHealth,
     refreshMemories,
     refreshModelCatalog,
     refreshSessions,
+    refreshWorkspace,
     openSession,
     startNewConversation,
   } from './lib/stores'
@@ -24,6 +26,7 @@
       await pingHealth()
       const list = await refreshSessions()
       await refreshMemories()
+      await refreshWorkspace().catch(() => {})
       // refreshModelCatalog records its own error in modelCatalogError; no
       // need to swallow exceptions here.
       await refreshModelCatalog()
@@ -47,6 +50,7 @@
     <header class="top">
       <span class="brand">co_worker</span>
       <div class="top-actions">
+        <WorkspacePill />
         <ModelSwitcher />
       </div>
     </header>

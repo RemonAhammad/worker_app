@@ -1,18 +1,22 @@
 <script lang="ts">
   import { tick } from 'svelte'
 
+  import AgentSteps from './AgentSteps.svelte'
   import MessageBubble from './MessageBubble.svelte'
   import MessageInput from './MessageInput.svelte'
   import {
     activeMessages,
     activeSessionId,
+    agentSteps,
     deleteSession,
     isGenerating,
     isLoadingModel,
     lastError,
+    pendingApproval,
     renameSession,
     sendInActive,
     sessions,
+    workspace,
   } from '../stores'
 
   let scrollEl: HTMLDivElement
@@ -20,6 +24,8 @@
   $effect(() => {
     void $activeMessages
     void $isGenerating
+    void $agentSteps
+    void $pendingApproval
     tick().then(() => {
       if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight
     })
@@ -128,7 +134,9 @@
       <MessageBubble message={m} />
     {/each}
 
-    {#if $isGenerating}
+    <AgentSteps />
+
+    {#if $isGenerating && $agentSteps.length === 0}
       <div class="thinking">
         <span class="dot"></span><span class="dot"></span><span class="dot"></span>
       </div>
@@ -141,7 +149,13 @@
 
   <MessageInput
     disabled={$isGenerating || $isLoadingModel}
-    placeholder={$isLoadingModel ? 'loading model…' : 'Type a message… (Shift+Enter for newline)'}
+    placeholder={
+      $isLoadingModel
+        ? 'loading model…'
+        : $workspace
+          ? 'Ask anything — the assistant can read & edit files in your workspace…'
+          : 'Type a message… (Shift+Enter for newline)'
+    }
     on:send={(e) => onSend(e.detail)}
   />
 </div>

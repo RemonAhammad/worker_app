@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-agent-continue"
+description = "Enables the agent_continue command without any pre-configured scope."
+commands.allow = ["agent_continue"]
+
+[[permission]]
+identifier = "deny-agent-continue"
+description = "Denies the agent_continue command without any pre-configured scope."
+commands.deny = ["agent_continue"]

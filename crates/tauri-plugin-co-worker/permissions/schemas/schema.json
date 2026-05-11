@@ -295,6 +295,30 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the agent_continue command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-agent-continue",
+          "markdownDescription": "Enables the agent_continue command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the agent_continue command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-agent-continue",
+          "markdownDescription": "Denies the agent_continue command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the agent_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-agent-send",
+          "markdownDescription": "Enables the agent_send command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the agent_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-agent-send",
+          "markdownDescription": "Denies the agent_send command without any pre-configured scope."
+        },
+        {
           "description": "Enables the chat command without any pre-configured scope.",
           "type": "string",
           "const": "allow-chat",
@@ -389,6 +413,18 @@
           "type": "string",
           "const": "deny-get-session",
           "markdownDescription": "Denies the get_session command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_workspace command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-workspace",
+          "markdownDescription": "Enables the get_workspace command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_workspace command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-workspace",
+          "markdownDescription": "Denies the get_workspace command without any pre-configured scope."
         },
         {
           "description": "Enables the health command without any pre-configured scope.",
@@ -487,6 +523,102 @@
           "markdownDescription": "Denies the set_base_url command without any pre-configured scope."
         },
         {
+          "description": "Enables the set_workspace command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-set-workspace",
+          "markdownDescription": "Enables the set_workspace command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_workspace command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-set-workspace",
+          "markdownDescription": "Denies the set_workspace command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_append_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-append-file",
+          "markdownDescription": "Enables the tool_append_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_append_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-append-file",
+          "markdownDescription": "Denies the tool_append_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_create_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-create-dir",
+          "markdownDescription": "Enables the tool_create_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_create_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-create-dir",
+          "markdownDescription": "Denies the tool_create_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_delete_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-delete-path",
+          "markdownDescription": "Enables the tool_delete_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_delete_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-delete-path",
+          "markdownDescription": "Denies the tool_delete_path command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_list_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-list-dir",
+          "markdownDescription": "Enables the tool_list_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_list_dir command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-list-dir",
+          "markdownDescription": "Denies the tool_list_dir command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_move_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-move-path",
+          "markdownDescription": "Enables the tool_move_path command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_move_path command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-move-path",
+          "markdownDescription": "Denies the tool_move_path command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_read_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-read-file",
+          "markdownDescription": "Enables the tool_read_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_read_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-read-file",
+          "markdownDescription": "Denies the tool_read_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the tool_write_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-write-file",
+          "markdownDescription": "Enables the tool_write_file command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_write_file command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-write-file",
+          "markdownDescription": "Denies the tool_write_file command without any pre-configured scope."
+        },
+        {
           "description": "Enables the update_session command without any pre-configured scope.",
           "type": "string",
           "const": "allow-update-session",
@@ -499,10 +631,10 @@
           "markdownDescription": "Denies the update_session command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`",
+          "description": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`\n- `allow-get-workspace`\n- `allow-set-workspace`\n- `allow-tool-list-dir`\n- `allow-tool-read-file`\n- `allow-tool-write-file`\n- `allow-tool-append-file`\n- `allow-tool-delete-path`\n- `allow-tool-move-path`\n- `allow-tool-create-dir`\n- `allow-agent-send`\n- `allow-agent-continue`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`"
+          "markdownDescription": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`\n- `allow-get-workspace`\n- `allow-set-workspace`\n- `allow-tool-list-dir`\n- `allow-tool-read-file`\n- `allow-tool-write-file`\n- `allow-tool-append-file`\n- `allow-tool-delete-path`\n- `allow-tool-move-path`\n- `allow-tool-create-dir`\n- `allow-agent-send`\n- `allow-agent-continue`"
         }
       ]
     }

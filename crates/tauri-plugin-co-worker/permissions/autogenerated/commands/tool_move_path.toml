@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-tool-move-path"
+description = "Enables the tool_move_path command without any pre-configured scope."
+commands.allow = ["tool_move_path"]
+
+[[permission]]
+identifier = "deny-tool-move-path"
+description = "Denies the tool_move_path command without any pre-configured scope."
+commands.deny = ["tool_move_path"]

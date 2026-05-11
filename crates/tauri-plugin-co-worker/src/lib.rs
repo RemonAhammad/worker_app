@@ -29,6 +29,10 @@ pub use error::{Error, Result};
 
 mod commands;
 mod error;
+mod tools;
+mod workspace;
+
+pub use workspace::WorkspaceState;
 
 /// Default backend URL used when no override is configured.
 pub const DEFAULT_BASE_URL: &str = "http://localhost:6969";
@@ -38,6 +42,7 @@ const ENV_VAR: &str = "CO_WORKER_URL";
 /// the managed handle without cloning the underlying `Mutex`.
 pub struct PluginState {
     pub client: tokio::sync::Mutex<co_worker_client::Client>,
+    pub workspace: WorkspaceState,
 }
 
 impl PluginState {
@@ -46,6 +51,7 @@ impl PluginState {
             .map_err(|_| Error::InvalidUrl(base_url.to_string()))?;
         Ok(Self {
             client: tokio::sync::Mutex::new(client),
+            workspace: WorkspaceState::default(),
         })
     }
 }
@@ -71,11 +77,35 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::list_memories,
             commands::create_memory,
             commands::delete_memory,
+            // Workspace + filesystem tools.
+            commands::get_workspace,
+            commands::set_workspace,
+            commands::tool_list_dir,
+            commands::tool_read_file,
+            commands::tool_write_file,
+            commands::tool_append_file,
+            commands::tool_delete_path,
+            commands::tool_move_path,
+            commands::tool_create_dir,
+            // Agent loop.
+            commands::agent_send,
+            commands::agent_continue,
         ])
         .setup(|app, _api| {
             let base_url = std::env::var(ENV_VAR).unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-            let state = PluginState::new(&base_url).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
-            app.manage(Arc::new(state));
+            let state =
+                PluginState::new(&base_url).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+            let state = Arc::new(state);
+            app.manage(state.clone());
+
+            // Rehydrate the persisted workspace asynchronously so startup
+            // is not delayed by a missing file.
+            let app_handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(root) = workspace::load_persisted(&app_handle).await {
+                    state.workspace.set(Some(root)).await;
+                }
+            });
             Ok(())
         })
         .build()

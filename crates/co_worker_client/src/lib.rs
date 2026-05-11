@@ -128,6 +128,43 @@ pub enum ModelKind {
     Local,
 }
 
+// ---------------------------------------------------------------------------
+// Agent loop wire types.
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsedToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolResult {
+    pub id: String,
+    pub ok: bool,
+    #[serde(default)]
+    pub content: String,
+}
+
+/// Result of either an `agent` send or an `agent/continue` POST. The `kind`
+/// tag selects which branch is populated.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AgentResponse {
+    Message {
+        message: Message,
+        usage: Usage,
+    },
+    ToolCalls {
+        assistant_id: Uuid,
+        calls: Vec<ParsedToolCall>,
+        #[serde(default)]
+        prose: String,
+        usage: Usage,
+    },
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Memory {
     pub id: Uuid,
@@ -295,6 +332,52 @@ impl Client {
         });
         let req = self.inner.patch(&url).json(&body);
         self.send_for_json(req).await
+    }
+
+    // ----- agent loop -----
+
+    /// Start an agent turn with a new user message.
+    pub async fn agent_send(
+        &self,
+        session_id: Uuid,
+        content: &str,
+        max_tokens: u32,
+        temperature: f32,
+        workspace_hint: Option<&str>,
+    ) -> Result<AgentResponse> {
+        self.post_json(
+            &format!("/v1/sessions/{session_id}/agent"),
+            &serde_json::json!({
+                "content": content,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "workspace_hint": workspace_hint,
+            }),
+        )
+        .await
+    }
+
+    /// Resume an agent turn by providing tool results.
+    pub async fn agent_continue(
+        &self,
+        session_id: Uuid,
+        assistant_id: Uuid,
+        results: &[ToolResult],
+        max_tokens: u32,
+        temperature: f32,
+        workspace_hint: Option<&str>,
+    ) -> Result<AgentResponse> {
+        self.post_json(
+            &format!("/v1/sessions/{session_id}/agent/continue"),
+            &serde_json::json!({
+                "assistant_id": assistant_id,
+                "results": results,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "workspace_hint": workspace_hint,
+            }),
+        )
+        .await
     }
 
     pub async fn debug_session(&self, id: Uuid) -> Result<DebugContext> {

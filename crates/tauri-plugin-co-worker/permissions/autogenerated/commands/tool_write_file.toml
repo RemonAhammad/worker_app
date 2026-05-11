@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-tool-write-file"
+description = "Enables the tool_write_file command without any pre-configured scope."
+commands.allow = ["tool_write_file"]
+
+[[permission]]
+identifier = "deny-tool-write-file"
+description = "Denies the tool_write_file command without any pre-configured scope."
+commands.deny = ["tool_write_file"]
