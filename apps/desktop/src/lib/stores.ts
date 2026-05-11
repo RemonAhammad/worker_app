@@ -48,6 +48,8 @@ export const isGenerating: Writable<boolean> = writable(false)
 export const lastError: Writable<string | null> = writable(null)
 
 export const modelCatalogStore: Writable<ModelCatalog | null> = writable(null)
+/** Set to a message string when the most recent catalog refresh failed. */
+export const modelCatalogError: Writable<string | null> = writable(null)
 /** True while a model is being downloaded / loaded. While set, the chat
  *  composer disables and the model switcher shows a spinner. */
 export const isLoadingModel: Writable<boolean> = writable(false)
@@ -124,11 +126,30 @@ export async function renameSession(id: string, title: string): Promise<void> {
   await refreshSessions()
 }
 
-/** Refresh the model catalog (presets + local files). */
-export async function refreshModelCatalog(): Promise<ModelCatalog> {
-  const c = await modelCatalog()
-  modelCatalogStore.set(c)
-  return c
+/** Refresh the model catalog (presets + local files). Errors are recorded
+ *  in `modelCatalogError` so the UI can show them rather than rendering an
+ *  empty popover. */
+export async function refreshModelCatalog(): Promise<ModelCatalog | null> {
+  try {
+    const c = await modelCatalog()
+    modelCatalogStore.set(c)
+    modelCatalogError.set(null)
+    return c
+  } catch (err) {
+    const msg = formatError(err)
+    // The common cause of 404 here is "backend hasn't been rebuilt since
+    // the catalog endpoint was added". Spell that out so the user knows
+    // what to do.
+    if (/404|not.?found/i.test(msg)) {
+      modelCatalogError.set(
+        'The backend does not expose /v1/models/catalog. Restart the lite backend (cargo run --release) to pick up the latest build.',
+      )
+    } else {
+      modelCatalogError.set(msg)
+    }
+    modelCatalogStore.set(null)
+    return null
+  }
 }
 
 /**

@@ -4,6 +4,7 @@
   import {
     backendHealth,
     isLoadingModel,
+    modelCatalogError,
     modelCatalogStore,
     refreshModelCatalog,
     switchModel,
@@ -16,7 +17,7 @@
   let popoverEl: HTMLDivElement | undefined = $state()
 
   onMount(() => {
-    void refreshModelCatalog().catch(() => {})
+    void refreshModelCatalog()
   })
 
   // Close on outside click / Escape.
@@ -35,7 +36,7 @@
       document.addEventListener('mousedown', onDocClick)
       document.addEventListener('keydown', onDocKey)
       // Refresh catalog when the menu opens so freshly downloaded files appear.
-      void refreshModelCatalog().catch(() => {})
+      void refreshModelCatalog()
     }
     return () => {
       document.removeEventListener('mousedown', onDocClick)
@@ -84,7 +85,7 @@
     {/if}
   </button>
 
-  {#if open && $modelCatalogStore}
+  {#if open}
     <div class="pop" bind:this={popoverEl}>
       <div class="pop-head">
         <span>Switch model</span>
@@ -92,6 +93,21 @@
           loading takes 10–60s · downloads block until complete
         </span>
       </div>
+
+      {#if $modelCatalogError}
+        <div class="catalog-error">
+          <strong>Couldn't load the catalog.</strong>
+          <span>{$modelCatalogError}</span>
+          <button class="retry" onclick={() => void refreshModelCatalog()}>
+            Retry
+          </button>
+        </div>
+      {:else if !$modelCatalogStore}
+        <div class="loading-state">
+          <span class="spinner" aria-hidden="true"></span>
+          loading catalog…
+        </div>
+      {:else}
       <ul>
         {#each $modelCatalogStore.entries as entry (entry.name)}
           {@const isSwitchingThis = switching === entry.name}
@@ -146,6 +162,7 @@
           </li>
         {/each}
       </ul>
+      {/if}
     </div>
   {/if}
 </div>
@@ -322,5 +339,31 @@
   }
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  .catalog-error {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    color: var(--fg);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .catalog-error strong {
+    color: var(--error);
+  }
+  .catalog-error .retry {
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+
+  .loading-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 14px;
+    color: var(--fg-dim);
+    font-size: 12.5px;
   }
 </style>

@@ -24,7 +24,9 @@
       await pingHealth()
       const list = await refreshSessions()
       await refreshMemories()
-      await refreshModelCatalog().catch(() => {})
+      // refreshModelCatalog records its own error in modelCatalogError; no
+      // need to swallow exceptions here.
+      await refreshModelCatalog()
       if (list.length > 0) {
         await openSession(list[0]!.id)
       } else {
