@@ -334,6 +334,7 @@ pub async fn tool_preview_write(
     fs_tools::preview_write(&root, &path, &content).await
 }
 
+
 // ----- persistent allow-list -----
 
 #[tauri::command]

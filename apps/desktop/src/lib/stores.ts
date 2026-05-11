@@ -323,7 +323,15 @@ export async function removeMemory(id: string): Promise<void> {
  */
 export async function sendInActive(content: string, opts?: SendOptions): Promise<void> {
   let sid = currentActive()
-  const hasWorkspace = currentWorkspace() !== null
+  const ws = currentWorkspace()
+  const hasWorkspace = ws !== null
+  console.log('[co_worker] sendInActive', {
+    sessionId: sid,
+    workspace: ws,
+    hasWorkspace,
+    willUseAgent: hasWorkspace,
+    contentPreview: content.slice(0, 80),
+  })
 
   // First message of a new conversation? Materialize the session now with
   // a title derived from the prompt.
@@ -495,7 +503,9 @@ async function runAgentLoop(
   content: string,
   opts?: SendOptions,
 ): Promise<void> {
+  console.log('[co_worker] runAgentLoop start', { sessionId })
   let response: AgentResponse = await agentSend(sessionId, content, opts)
+  console.log('[co_worker] agentSend response', response)
   for (let round = 0; round < MAX_TOOL_ROUNDTRIPS; round++) {
     if (response.kind === 'message') {
       const final = response
@@ -573,7 +583,12 @@ async function runAgentLoop(
       }
     }
 
+    console.log('[co_worker] sending tool results back to agent', {
+      round,
+      results,
+    })
     response = await agentContinue(sessionId, turn.assistant_id, results, opts)
+    console.log('[co_worker] agentContinue response', { round: round + 1, response })
   }
   // Hit the cap.
   agentSteps.update((s) => [

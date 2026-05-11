@@ -803,6 +803,32 @@ Denies the tool_read_file command without any pre-configured scope.
 <tr>
 <td>
 
+`co-worker:allow-tool-run-command`
+
+</td>
+<td>
+
+Enables the tool_run_command command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-run-command`
+
+</td>
+<td>
+
+Denies the tool_run_command command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `co-worker:allow-tool-search`
 
 </td>

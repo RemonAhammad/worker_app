@@ -643,6 +643,18 @@
           "markdownDescription": "Denies the tool_read_file command without any pre-configured scope."
         },
         {
+          "description": "Enables the tool_run_command command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-tool-run-command",
+          "markdownDescription": "Enables the tool_run_command command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the tool_run_command command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-tool-run-command",
+          "markdownDescription": "Denies the tool_run_command command without any pre-configured scope."
+        },
+        {
           "description": "Enables the tool_search command without any pre-configured scope.",
           "type": "string",
           "const": "allow-tool-search",
