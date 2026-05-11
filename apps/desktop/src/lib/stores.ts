@@ -22,10 +22,15 @@ import {
   health,
   listMemories,
   listSessions,
+  loadModel,
+  modelCatalog,
   sendMessage,
+  updateSession,
   type HealthResponse,
   type Memory,
   type Message,
+  type ModelCatalog,
+  type ModelCatalogEntry,
   type Session,
 } from './api'
 
@@ -41,6 +46,11 @@ export const memories: Writable<Memory[]> = writable([])
 export const backendHealth: Writable<HealthResponse | null> = writable(null)
 export const isGenerating: Writable<boolean> = writable(false)
 export const lastError: Writable<string | null> = writable(null)
+
+export const modelCatalogStore: Writable<ModelCatalog | null> = writable(null)
+/** True while a model is being downloaded / loaded. While set, the chat
+ *  composer disables and the model switcher shows a spinner. */
+export const isLoadingModel: Writable<boolean> = writable(false)
 
 /** Refresh the conversation list. */
 export async function refreshSessions(): Promise<Session[]> {
@@ -77,14 +87,21 @@ export async function openSession(id: string): Promise<void> {
   activeMessages.set(full.messages)
 }
 
-/** Create a new session and switch to it. */
-export async function startNewSession(systemPrompt?: string | null): Promise<Session> {
-  const title = defaultTitle()
-  const s = await createSession(title, systemPrompt ?? null)
-  await refreshSessions()
-  await openSession(s.id)
-  return s
+/**
+ * Stage a new conversation locally — no DB row yet.
+ *
+ * The actual session is created on the first `sendInActive` call so its
+ * title can be the user's first prompt. Until then `activeSessionId` is
+ * `null` and `activeMessages` is empty.
+ */
+export function startNewConversation(systemPrompt?: string | null): void {
+  pendingSystemPrompt = systemPrompt ?? null
+  activeSessionId.set(null)
+  activeMessages.set([])
+  lastError.set(null)
 }
+
+let pendingSystemPrompt: string | null = null
 
 /** Delete a session. If it's the active one, clear focus. */
 export async function deleteSession(id: string): Promise<void> {
@@ -97,6 +114,42 @@ export async function deleteSession(id: string): Promise<void> {
     return cur
   })
   await refreshSessions()
+}
+
+/** Patch a session's title (and optionally system prompt). */
+export async function renameSession(id: string, title: string): Promise<void> {
+  const trimmed = title.trim()
+  if (trimmed.length === 0) return
+  await updateSession(id, { title: trimmed })
+  await refreshSessions()
+}
+
+/** Refresh the model catalog (presets + local files). */
+export async function refreshModelCatalog(): Promise<ModelCatalog> {
+  const c = await modelCatalog()
+  modelCatalogStore.set(c)
+  return c
+}
+
+/**
+ * Switch the backend's active model. Blocks chat until done. Refreshes the
+ * catalog and the health store on success so the UI picks up the new state.
+ */
+export async function switchModel(entry: ModelCatalogEntry): Promise<void> {
+  if (entry.loaded) return
+  isLoadingModel.set(true)
+  lastError.set(null)
+  try {
+    await loadModel(entry.name)
+    // Re-read both: catalog has the new loaded flag, health has the new name.
+    await refreshModelCatalog()
+    await pingHealth()
+  } catch (err) {
+    lastError.set(formatError(err))
+    throw err
+  } finally {
+    isLoadingModel.set(false)
+  }
 }
 
 /** Add a memory and refresh the list. */
@@ -113,12 +166,28 @@ export async function removeMemory(id: string): Promise<void> {
 }
 
 /**
- * Send a user message in the active session. Pushes both the optimistic
- * user message and the eventual assistant reply into `activeMessages`.
+ * Send a user message in the active session. If there is no active session
+ * yet (fresh app launch or "+ New chat" was just clicked), this is the
+ * point we materialize one — using the first ~60 chars of `content` as the
+ * title so the sidebar shows something meaningful.
+ *
+ * Pushes both the optimistic user message and the eventual assistant reply
+ * into `activeMessages`.
  */
 export async function sendInActive(content: string, opts?: SendOptions): Promise<void> {
-  const sid = currentActive()
-  if (!sid) throw new Error('no active session')
+  let sid = currentActive()
+
+  // First message of a new conversation? Materialize the session now with
+  // a title derived from the prompt.
+  if (!sid) {
+    const title = titleFromPrompt(content)
+    const s = await createSession(title, pendingSystemPrompt)
+    pendingSystemPrompt = null
+    sid = s.id
+    activeSessionId.set(sid)
+    // Refresh the sidebar so the new row appears immediately.
+    void refreshSessions()
+  }
 
   const optimistic: Message = {
     id: crypto.randomUUID(),
@@ -158,10 +227,12 @@ function currentActive(): string | null {
   return v
 }
 
-function defaultTitle(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `chat ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+/** Derive a sidebar title from the user's first message. Collapses
+ *  whitespace, trims to ~60 chars, appends an ellipsis if truncated. */
+function titleFromPrompt(content: string): string {
+  const flat = content.replace(/\s+/g, ' ').trim()
+  if (flat.length === 0) return 'new chat'
+  return flat.length > 60 ? flat.slice(0, 60).trimEnd() + '…' : flat
 }
 
 export function formatError(err: unknown): string {

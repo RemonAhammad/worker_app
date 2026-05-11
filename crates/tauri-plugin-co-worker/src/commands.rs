@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use co_worker_client::{
     ChatResponse, Client, DebugContext, HealthResponse, ListModelsResponse, Memory,
-    MessageResponse, Session, SessionWithMessages,
+    MessageResponse, ModelCatalog, ModelCatalogEntry, Session, SessionWithMessages,
 };
 use tauri::State;
 use uuid::Uuid;
@@ -48,6 +48,21 @@ pub async fn list_models(
     Ok(current_client(&state).await.list_models().await?)
 }
 
+#[tauri::command]
+pub async fn model_catalog(
+    state: State<'_, Arc<PluginState>>,
+) -> Result<ModelCatalog> {
+    Ok(current_client(&state).await.model_catalog().await?)
+}
+
+#[tauri::command]
+pub async fn load_model(
+    state: State<'_, Arc<PluginState>>,
+    name: String,
+) -> Result<ModelCatalogEntry> {
+    Ok(current_client(&state).await.load_model(&name).await?)
+}
+
 // ----- sessions -----
 
 #[tauri::command]
@@ -88,6 +103,19 @@ pub async fn delete_session(
     id: Uuid,
 ) -> Result<()> {
     Ok(current_client(&state).await.delete_session(id).await?)
+}
+
+#[tauri::command]
+pub async fn update_session(
+    state: State<'_, Arc<PluginState>>,
+    id: Uuid,
+    title: Option<String>,
+    system_prompt: Option<String>,
+) -> Result<Session> {
+    Ok(current_client(&state)
+        .await
+        .update_session(id, title.as_deref(), system_prompt.as_deref())
+        .await?)
 }
 
 #[tauri::command]

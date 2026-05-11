@@ -81,6 +81,26 @@ export interface ListModelsResponse {
   models: ModelInfo[]
 }
 
+export type ModelKind = 'preset' | 'local'
+
+export interface ModelCatalogEntry {
+  name: string
+  kind: ModelKind
+  repo: string
+  filename: string
+  context_length: number
+  size_bytes: number | null
+  min_ram_gib: number | null
+  description: string | null
+  present: boolean
+  loaded: boolean
+}
+
+export interface ModelCatalog {
+  current: string
+  entries: ModelCatalogEntry[]
+}
+
 export interface Memory {
   id: string
   content: string
@@ -140,6 +160,20 @@ export function listModels(): Promise<ListModelsResponse> {
   return call('list_models')
 }
 
+/** Rich catalog: every preset + every local GGUF, tagged with present/loaded. */
+export function modelCatalog(): Promise<ModelCatalog> {
+  return call('model_catalog')
+}
+
+/**
+ * Hot-swap the active model. Downloads the GGUF first if it's not on disk.
+ * Takes 10-60s depending on file presence and model size; the UI should
+ * disable input during the wait.
+ */
+export function loadModel(name: string): Promise<ModelCatalogEntry> {
+  return call('load_model', { name })
+}
+
 // ----- sessions -----
 
 export function listSessions(limit?: number, offset?: number): Promise<Session[]> {
@@ -159,6 +193,21 @@ export function createSession(
 
 export function deleteSession(id: string): Promise<void> {
   return call('delete_session', { id })
+}
+
+/**
+ * Patch a session's title and/or system prompt. Pass `undefined` to leave
+ * a field untouched; pass empty string for `systemPrompt` to clear it.
+ */
+export function updateSession(
+  id: string,
+  patch: { title?: string; systemPrompt?: string },
+): Promise<Session> {
+  return call('update_session', {
+    id,
+    title: patch.title,
+    systemPrompt: patch.systemPrompt,
+  })
 }
 
 export function debugSession(id: string): Promise<DebugContext> {

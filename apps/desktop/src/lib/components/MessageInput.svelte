@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
 
-  let { disabled = false } = $props<{ disabled?: boolean }>()
+  let { disabled = false, placeholder = 'Type a message… (Shift+Enter for newline)' } =
+    $props<{ disabled?: boolean; placeholder?: string }>()
   const dispatch = createEventDispatcher<{ send: string }>()
 
   let value = $state('')
@@ -38,7 +39,7 @@
   <textarea
     bind:this={textarea}
     bind:value
-    placeholder="Type a message… (Shift+Enter for newline)"
+    {placeholder}
     onkeydown={onKey}
     rows="1"
     {disabled}

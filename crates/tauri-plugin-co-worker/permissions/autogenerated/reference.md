@@ -8,10 +8,13 @@ Default permissions for the co-worker plugin. Allows every command in the surfac
 - `allow-get-base-url`
 - `allow-health`
 - `allow-list-models`
+- `allow-model-catalog`
+- `allow-load-model`
 - `allow-list-sessions`
 - `allow-get-session`
 - `allow-create-session`
 - `allow-delete-session`
+- `allow-update-session`
 - `allow-debug-session`
 - `allow-send-message`
 - `allow-chat`
@@ -343,6 +346,58 @@ Denies the list_sessions command without any pre-configured scope.
 <tr>
 <td>
 
+`co-worker:allow-load-model`
+
+</td>
+<td>
+
+Enables the load_model command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-load-model`
+
+</td>
+<td>
+
+Denies the load_model command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-model-catalog`
+
+</td>
+<td>
+
+Enables the model_catalog command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-model-catalog`
+
+</td>
+<td>
+
+Denies the model_catalog command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `co-worker:allow-send-message`
 
 </td>
@@ -388,6 +443,32 @@ Enables the set_base_url command without any pre-configured scope.
 <td>
 
 Denies the set_base_url command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-update-session`
+
+</td>
+<td>
+
+Enables the update_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-update-session`
+
+</td>
+<td>
+
+Denies the update_session command without any pre-configured scope.
 
 </td>
 </tr>

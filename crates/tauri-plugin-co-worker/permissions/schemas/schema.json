@@ -439,6 +439,30 @@
           "markdownDescription": "Denies the list_sessions command without any pre-configured scope."
         },
         {
+          "description": "Enables the load_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-load-model",
+          "markdownDescription": "Enables the load_model command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the load_model command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-load-model",
+          "markdownDescription": "Denies the load_model command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the model_catalog command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-model-catalog",
+          "markdownDescription": "Enables the model_catalog command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the model_catalog command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-model-catalog",
+          "markdownDescription": "Denies the model_catalog command without any pre-configured scope."
+        },
+        {
           "description": "Enables the send_message command without any pre-configured scope.",
           "type": "string",
           "const": "allow-send-message",
@@ -463,10 +487,22 @@
           "markdownDescription": "Denies the set_base_url command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`",
+          "description": "Enables the update_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-session",
+          "markdownDescription": "Enables the update_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-session",
+          "markdownDescription": "Denies the update_session command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`"
+          "markdownDescription": "Default permissions for the co-worker plugin. Allows every command in the surface.\n#### This default permission set includes:\n\n- `allow-set-base-url`\n- `allow-get-base-url`\n- `allow-health`\n- `allow-list-models`\n- `allow-model-catalog`\n- `allow-load-model`\n- `allow-list-sessions`\n- `allow-get-session`\n- `allow-create-session`\n- `allow-delete-session`\n- `allow-update-session`\n- `allow-debug-session`\n- `allow-send-message`\n- `allow-chat`\n- `allow-list-memories`\n- `allow-create-memory`\n- `allow-delete-memory`"
         }
       ]
     }

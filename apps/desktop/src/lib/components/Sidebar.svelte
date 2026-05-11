@@ -4,7 +4,7 @@
     deleteSession,
     openSession,
     sessions,
-    startNewSession,
+    startNewConversation,
   } from '../stores'
 
   let { onOpenMemories } = $props<{ onOpenMemories: () => void }>()
@@ -15,8 +15,8 @@
   }
   const pad = (n: number) => String(n).padStart(2, '0')
 
-  async function onNew() {
-    await startNewSession()
+  function onNew() {
+    startNewConversation()
   }
 
   async function onSelect(id: string) {

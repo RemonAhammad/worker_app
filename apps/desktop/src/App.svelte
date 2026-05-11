@@ -5,32 +5,30 @@
   import ChatView from './lib/components/ChatView.svelte'
   import StatusBar from './lib/components/StatusBar.svelte'
   import MemoriesDrawer from './lib/components/MemoriesDrawer.svelte'
+  import ModelSwitcher from './lib/components/ModelSwitcher.svelte'
   import {
-    activeSessionId,
     pingHealth,
     refreshMemories,
+    refreshModelCatalog,
     refreshSessions,
-    sessions,
     openSession,
-    startNewSession,
+    startNewConversation,
   } from './lib/stores'
 
   let memoriesOpen = $state(false)
 
   onMount(() => {
-    // Light polling so a backend restart is noticed.
     const t = setInterval(pingHealth, 15_000)
 
-    // Kick off initial fetches without blocking the cleanup return.
     void (async () => {
       await pingHealth()
       const list = await refreshSessions()
       await refreshMemories()
-      // Auto-open the most recent session if one exists, otherwise create one.
+      await refreshModelCatalog().catch(() => {})
       if (list.length > 0) {
         await openSession(list[0]!.id)
       } else {
-        await startNewSession()
+        startNewConversation()
       }
     })()
 
@@ -42,7 +40,15 @@
   <aside class="sidebar">
     <Sidebar onOpenMemories={() => (memoriesOpen = true)} />
   </aside>
+
   <main class="main">
+    <header class="top">
+      <span class="brand">co_worker</span>
+      <div class="top-actions">
+        <ModelSwitcher />
+      </div>
+    </header>
+
     <ChatView />
     <StatusBar />
   </main>
@@ -69,8 +75,29 @@
   }
   .main {
     display: grid;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: auto 1fr auto;
     min-height: 0;
     min-width: 0;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 18px;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--bg-soft);
+    height: 44px;
+  }
+  .brand {
+    font-weight: 600;
+    color: var(--fg-muted);
+    letter-spacing: 0.02em;
+    font-size: 13px;
+  }
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 </style>

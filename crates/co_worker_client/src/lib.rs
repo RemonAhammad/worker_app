@@ -102,6 +102,33 @@ pub struct ListModelsResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ModelCatalog {
+    pub current: String,
+    pub entries: Vec<ModelCatalogEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ModelCatalogEntry {
+    pub name: String,
+    pub kind: ModelKind,
+    pub repo: String,
+    pub filename: String,
+    pub context_length: u32,
+    pub size_bytes: Option<u64>,
+    pub min_ram_gib: Option<u32>,
+    pub description: Option<String>,
+    pub present: bool,
+    pub loaded: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelKind {
+    Preset,
+    Local,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Memory {
     pub id: Uuid,
     pub content: String,
@@ -207,6 +234,23 @@ impl Client {
         self.get_json("/v1/models").await
     }
 
+    /// Rich model catalog: every preset + every local GGUF, tagged with
+    /// `present`/`loaded`. The UI uses this to render the switcher dropdown.
+    pub async fn model_catalog(&self) -> Result<ModelCatalog> {
+        self.get_json("/v1/models/catalog").await
+    }
+
+    /// Hot-swap the active model on the backend. Downloads the GGUF first
+    /// if it's not on disk. Takes 10-60s depending on file presence and
+    /// model size.
+    pub async fn load_model(&self, name: &str) -> Result<ModelCatalogEntry> {
+        self.post_json(
+            "/v1/models/load",
+            &serde_json::json!({ "name": name }),
+        )
+        .await
+    }
+
     // ----- sessions -----
 
     pub async fn list_sessions(&self, limit: i64, offset: i64) -> Result<Vec<Session>> {
@@ -234,6 +278,23 @@ impl Client {
         let url = format!("{}/v1/sessions/{id}", self.base);
         let resp = self.inner.delete(&url).send().await?;
         check_status(resp).await.map(|_| ())
+    }
+
+    /// Patch a session's title and/or system prompt. Pass `None` to leave
+    /// a field untouched; pass `Some("")` for `system_prompt` to clear it.
+    pub async fn update_session(
+        &self,
+        id: Uuid,
+        title: Option<&str>,
+        system_prompt: Option<&str>,
+    ) -> Result<Session> {
+        let url = format!("{}/v1/sessions/{id}", self.base);
+        let body = serde_json::json!({
+            "title": title,
+            "system_prompt": system_prompt,
+        });
+        let req = self.inner.patch(&url).json(&body);
+        self.send_for_json(req).await
     }
 
     pub async fn debug_session(&self, id: Uuid) -> Result<DebugContext> {
