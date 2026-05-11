@@ -17,10 +17,42 @@ use tokio::sync::RwLock;
 use crate::Error;
 
 const STATE_FILENAME: &str = "co_worker_workspace.json";
+const ALLOWLIST_FILENAME: &str = "co_worker_autoallow.json";
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct PersistedWorkspace {
     root: Option<PathBuf>,
+}
+
+/// Persistent "always allow" set, keyed by tool name. Stored in the app
+/// data dir alongside the workspace selection.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct AllowList {
+    pub tools: Vec<String>,
+}
+
+/// In-memory allow-list state. Wrapped in `RwLock` so reads (every tool
+/// call) don't block writes (when the user toggles a checkbox).
+#[derive(Default)]
+pub struct AllowListState {
+    inner: RwLock<AllowList>,
+}
+
+impl AllowListState {
+    pub async fn get(&self) -> AllowList {
+        let guard = self.inner.read().await;
+        AllowList {
+            tools: guard.tools.clone(),
+        }
+    }
+
+    pub async fn contains(&self, tool: &str) -> bool {
+        self.inner.read().await.tools.iter().any(|t| t == tool)
+    }
+
+    pub async fn set(&self, tools: Vec<String>) {
+        self.inner.write().await.tools = tools;
+    }
 }
 
 /// In-memory workspace state. Wrapped in an `RwLock` so the agent loop can
@@ -142,6 +174,38 @@ fn state_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
         .app_data_dir()
         .ok()
         .map(|d| d.join(STATE_FILENAME))
+}
+
+fn allowlist_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .ok()
+        .map(|d| d.join(ALLOWLIST_FILENAME))
+}
+
+pub async fn load_allowlist<R: Runtime>(app: &AppHandle<R>) -> AllowList {
+    let Some(path) = allowlist_path(app) else {
+        return AllowList::default();
+    };
+    let Ok(bytes) = tokio::fs::read(&path).await else {
+        return AllowList::default();
+    };
+    serde_json::from_slice(&bytes).unwrap_or_default()
+}
+
+pub async fn save_allowlist<R: Runtime>(
+    app: &AppHandle<R>,
+    list: &AllowList,
+) -> Result<(), Error> {
+    let Some(path) = allowlist_path(app) else {
+        return Ok(());
+    };
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(Error::Io)?;
+    }
+    let bytes = serde_json::to_vec_pretty(list).map_err(Error::Json)?;
+    tokio::fs::write(&path, bytes).await.map_err(Error::Io)?;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -32,7 +32,7 @@ mod error;
 mod tools;
 mod workspace;
 
-pub use workspace::WorkspaceState;
+pub use workspace::{AllowListState, WorkspaceState};
 
 /// Default backend URL used when no override is configured.
 pub const DEFAULT_BASE_URL: &str = "http://localhost:6969";
@@ -43,6 +43,7 @@ const ENV_VAR: &str = "CO_WORKER_URL";
 pub struct PluginState {
     pub client: tokio::sync::Mutex<co_worker_client::Client>,
     pub workspace: WorkspaceState,
+    pub allowlist: AllowListState,
 }
 
 impl PluginState {
@@ -52,6 +53,7 @@ impl PluginState {
         Ok(Self {
             client: tokio::sync::Mutex::new(client),
             workspace: WorkspaceState::default(),
+            allowlist: AllowListState::default(),
         })
     }
 }
@@ -87,6 +89,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::tool_delete_path,
             commands::tool_move_path,
             commands::tool_create_dir,
+            commands::tool_search,
+            commands::tool_preview_write,
+            commands::get_auto_allow,
+            commands::set_auto_allow,
             // Agent loop.
             commands::agent_send,
             commands::agent_continue,
@@ -98,13 +104,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let state = Arc::new(state);
             app.manage(state.clone());
 
-            // Rehydrate the persisted workspace asynchronously so startup
-            // is not delayed by a missing file.
+            // Rehydrate persisted state asynchronously so startup is not
+            // delayed by a missing or corrupt file.
             let app_handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 if let Some(root) = workspace::load_persisted(&app_handle).await {
                     state.workspace.set(Some(root)).await;
                 }
+                let allowlist = workspace::load_allowlist(&app_handle).await;
+                state.allowlist.set(allowlist.tools).await;
             });
             Ok(())
         })

@@ -20,6 +20,8 @@ import {
   createSession,
   deleteMemory as apiDeleteMemory,
   deleteSession as apiDeleteSession,
+  getAutoAllow,
+  getBaseUrl,
   getSession,
   getWorkspace,
   health,
@@ -28,13 +30,16 @@ import {
   loadModel,
   modelCatalog,
   sendMessage,
+  setAutoAllow,
   setWorkspace as apiSetWorkspace,
   toolAppendFile,
   toolCreateDir,
   toolDeletePath,
   toolListDir,
   toolMovePath,
+  toolPreviewWrite,
   toolReadFile,
+  toolSearch,
   toolWriteFile,
   updateSession,
   type AgentResponse,
@@ -46,6 +51,7 @@ import {
   type ParsedToolCall,
   type Session,
   type ToolResultPayload,
+  type WritePreview,
 } from './api'
 
 export interface SendOptions {
@@ -97,6 +103,14 @@ export const pendingApproval: Writable<{
 /** Auto-allow all mutating tool calls for the remainder of this turn. The
  *  user can flip this on a permission prompt to lower friction. */
 export const autoApprove: Writable<boolean> = writable(false)
+
+/** Persisted per-tool "always allow" — set of tool names that bypass the
+ *  approval card across sessions. Loaded from disk at startup. */
+export const persistentAllow: Writable<Set<string>> = writable(new Set())
+
+/** Diff preview attached to a pending approval card for write_file/
+ *  append_file. Computed lazily on demand. */
+export const approvalDiff: Writable<WritePreview | null> = writable(null)
 
 /** Refresh the conversation list. */
 export async function refreshSessions(): Promise<Session[]> {
@@ -230,6 +244,57 @@ export async function setWorkspaceRoot(path: string | null): Promise<void> {
   workspace.set(updated)
 }
 
+// ---------------------------------------------------------------------------
+// Persistent per-tool allow-list.
+// ---------------------------------------------------------------------------
+
+export async function refreshPersistentAllow(): Promise<Set<string>> {
+  const list = await getAutoAllow()
+  const s = new Set(list)
+  persistentAllow.set(s)
+  return s
+}
+
+export async function togglePersistentAllow(tool: string): Promise<void> {
+  let next: Set<string> = new Set()
+  persistentAllow.update((cur) => {
+    next = new Set(cur)
+    if (next.has(tool)) next.delete(tool)
+    else next.add(tool)
+    return next
+  })
+  await setAutoAllow(Array.from(next))
+}
+
+// ---------------------------------------------------------------------------
+// Per-session model pin.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pin (or clear) a preferred model on the active session. Stores the GGUF
+ * filename on `sessions.model_name`; the backend auto-swaps on the next
+ * send if the loaded model differs.
+ */
+export async function pinSessionModel(filename: string): Promise<void> {
+  const sid = currentActive()
+  if (!sid) return
+  await updateSession(sid, { /* leave title alone */ })
+  // updateSession TS binding only handles title/systemPrompt; call the
+  // plugin's update_session command directly via base URL? No — we have
+  // the underlying TS API, but it doesn't expose model_name. We patch via
+  // a direct PATCH to the backend.
+  const base = await getBaseUrl()
+  const resp = await fetch(`${base}/v1/sessions/${sid}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model_name: filename }),
+  })
+  if (!resp.ok) {
+    throw new Error(`pin model failed: ${resp.status} ${await resp.text()}`)
+  }
+  await refreshSessions()
+}
+
 /** Add a memory and refresh the list. */
 export async function addMemory(content: string): Promise<Memory> {
   const m = await createMemory(content)
@@ -290,8 +355,7 @@ export async function sendInActive(content: string, opts?: SendOptions): Promise
     if (hasWorkspace) {
       await runAgentLoop(sid, content, opts)
     } else {
-      const resp = await sendMessage(sid, content, opts)
-      activeMessages.update((ms) => [...ms, resp.message])
+      await runStreamingChat(sid, content, opts)
     }
     await refreshSessions()
   } catch (err) {
@@ -306,6 +370,122 @@ export async function sendInActive(content: string, opts?: SendOptions): Promise
 }
 
 const MAX_TOOL_ROUNDTRIPS = 10
+
+/**
+ * Stream a non-agent assistant reply via the backend's SSE endpoint.
+ *
+ * Pushes a placeholder assistant message into `activeMessages` immediately
+ * and appends incoming tokens to it as they arrive, so the user sees text
+ * flow in real time. On the `done` event we swap the placeholder for the
+ * persisted backend row (more accurate id/timestamps). On failure or
+ * exception we fall back to the non-streaming `sendMessage` so a degraded
+ * backend (no SSE) still works.
+ */
+async function runStreamingChat(
+  sessionId: string,
+  content: string,
+  opts?: SendOptions,
+): Promise<void> {
+  const base = await getBaseUrl()
+  const placeholderId = crypto.randomUUID()
+  const placeholder: Message = {
+    id: placeholderId,
+    session_id: sessionId,
+    role: 'assistant',
+    content: '',
+    token_count: 0,
+    created_at: new Date().toISOString(),
+    metadata: {},
+  }
+  activeMessages.update((ms) => [...ms, placeholder])
+
+  let resp: Response
+  try {
+    resp = await fetch(
+      `${base}/v1/sessions/${sessionId}/messages/stream`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({
+          content,
+          max_tokens: opts?.maxTokens ?? 1024,
+          temperature: opts?.temperature ?? 0.7,
+        }),
+      },
+    )
+  } catch (err) {
+    activeMessages.update((ms) => ms.filter((m) => m.id !== placeholderId))
+    // Non-streaming fallback so older backends still work.
+    const fallback = await sendMessage(sessionId, content, opts)
+    activeMessages.update((ms) => [...ms, fallback.message])
+    return
+  }
+
+  if (!resp.ok || !resp.body) {
+    activeMessages.update((ms) => ms.filter((m) => m.id !== placeholderId))
+    const body = await resp.text().catch(() => '')
+    throw new Error(`stream failed: ${resp.status} ${body}`)
+  }
+
+  const reader = resp.body
+    .pipeThrough(new TextDecoderStream())
+    .getReader()
+  let bufferedLine = ''
+  // SSE frames are terminated by a blank line. Each frame is one event,
+  // composed of one or more `data:` lines we concatenate.
+  let eventBuffer = ''
+
+  const finishEvent = async () => {
+    if (!eventBuffer) return
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(eventBuffer)
+    } catch {
+      return
+    }
+    eventBuffer = ''
+    if (typeof parsed !== 'object' || parsed === null) return
+    const ev = parsed as { type?: string; text?: string; message?: Message; error?: string }
+    if (ev.type === 'token' && typeof ev.text === 'string') {
+      const token = ev.text
+      activeMessages.update((ms) =>
+        ms.map((m) =>
+          m.id === placeholderId ? { ...m, content: m.content + token } : m,
+        ),
+      )
+    } else if (ev.type === 'done' && ev.message) {
+      activeMessages.update((ms) =>
+        ms.map((m) => (m.id === placeholderId ? ev.message! : m)),
+      )
+    } else if (ev.type === 'error') {
+      activeMessages.update((ms) => ms.filter((m) => m.id !== placeholderId))
+      throw new Error(`stream error: ${ev.error ?? 'unknown'}`)
+    }
+  }
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    bufferedLine += value
+    // Split incoming text into complete lines; keep the trailing partial.
+    let nl
+    while ((nl = bufferedLine.indexOf('\n')) >= 0) {
+      const line = bufferedLine.slice(0, nl).replace(/\r$/, '')
+      bufferedLine = bufferedLine.slice(nl + 1)
+      if (line === '') {
+        await finishEvent()
+      } else if (line.startsWith('data:')) {
+        eventBuffer += line.slice(5).trimStart()
+      }
+      // SSE has other prefixes (event:, id:, retry:) we ignore.
+    }
+  }
+  // Drain any final event that didn't end with a blank line.
+  await finishEvent()
+}
 
 /** Walk the agent loop until the model produces a final assistant message
  *  or we exceed the round-trip cap. Tool execution and permission prompts
@@ -342,8 +522,33 @@ async function runAgentLoop(
       ])
 
       let allowed = true
-      if (isMutating(call.name) && !currentAutoApprove()) {
-        allowed = await askApproval(call)
+      if (isMutating(call.name)) {
+        // Persistent allow-list lets the user pre-approve specific tools.
+        const persistent = currentPersistent()
+        if (currentAutoApprove() || persistent.has(call.name)) {
+          allowed = true
+        } else {
+          // For file-writing tools, compute a diff preview so the approval
+          // card can show what will change.
+          if (call.name === 'write_file' || call.name === 'append_file') {
+            const path = typeof call.arguments.path === 'string'
+              ? call.arguments.path
+              : ''
+            const content = typeof call.arguments.content === 'string'
+              ? call.arguments.content
+              : ''
+            try {
+              const preview = await toolPreviewWrite(path, content)
+              approvalDiff.set(preview)
+            } catch {
+              approvalDiff.set(null)
+            }
+          } else {
+            approvalDiff.set(null)
+          }
+          allowed = await askApproval(call)
+          approvalDiff.set(null)
+        }
       }
 
       if (!allowed) {
@@ -441,6 +646,14 @@ async function runTool(call: ParsedToolCall): Promise<string> {
       const r = await toolCreateDir(asString(a.path))
       return JSON.stringify(r)
     }
+    case 'search': {
+      const r = await toolSearch(asString(a.query), {
+        path: typeof a.path === 'string' ? a.path : undefined,
+        maxResults: asNumber(a.max_results),
+        caseInsensitive: a.case_insensitive === true,
+      })
+      return JSON.stringify(r)
+    }
     default:
       throw new Error(`unknown tool: ${call.name}`)
   }
@@ -465,6 +678,12 @@ function currentWorkspace(): string | null {
 function currentAutoApprove(): boolean {
   let v = false
   autoApprove.subscribe((x) => (v = x))()
+  return v
+}
+
+function currentPersistent(): Set<string> {
+  let v: Set<string> = new Set()
+  persistentAllow.subscribe((x) => (v = x))()
   return v
 }
 

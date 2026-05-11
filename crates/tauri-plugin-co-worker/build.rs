@@ -30,6 +30,10 @@ const COMMANDS: &[&str] = &[
     "tool_delete_path",
     "tool_move_path",
     "tool_create_dir",
+    "tool_search",
+    "tool_preview_write",
+    "get_auto_allow",
+    "set_auto_allow",
     "agent_send",
     "agent_continue",
 ];

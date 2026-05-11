@@ -305,6 +305,63 @@ pub async fn tool_create_dir(
     fs_tools::create_dir(&root, &path).await
 }
 
+#[tauri::command]
+pub async fn tool_search(
+    state: State<'_, Arc<PluginState>>,
+    query: String,
+    path: Option<String>,
+    max_results: Option<u32>,
+    case_insensitive: Option<bool>,
+) -> Result<fs_tools::SearchResult> {
+    let root = workspace_root(&state).await?;
+    fs_tools::search(
+        &root,
+        &query,
+        path.as_deref(),
+        max_results,
+        case_insensitive.unwrap_or(false),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn tool_preview_write(
+    state: State<'_, Arc<PluginState>>,
+    path: String,
+    content: String,
+) -> Result<fs_tools::WritePreview> {
+    let root = workspace_root(&state).await?;
+    fs_tools::preview_write(&root, &path, &content).await
+}
+
+// ----- persistent allow-list -----
+
+#[tauri::command]
+pub async fn get_auto_allow(state: State<'_, Arc<PluginState>>) -> Result<Vec<String>> {
+    Ok(state.allowlist.get().await.tools)
+}
+
+#[tauri::command]
+pub async fn set_auto_allow<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, Arc<PluginState>>,
+    tools: Vec<String>,
+) -> Result<Vec<String>> {
+    let cleaned: Vec<String> = tools.into_iter().filter(|s| !s.is_empty()).collect();
+    state.allowlist.set(cleaned.clone()).await;
+    if let Err(e) = workspace::save_allowlist(
+        &app,
+        &workspace::AllowList {
+            tools: cleaned.clone(),
+        },
+    )
+    .await
+    {
+        eprintln!("co_worker plugin: could not persist allow-list: {e}");
+    }
+    Ok(cleaned)
+}
+
 // ----- agent loop -----
 
 /// Return the workspace path as a string the model can use as a hint, or

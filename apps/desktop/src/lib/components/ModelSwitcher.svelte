@@ -2,11 +2,15 @@
   import { onMount } from 'svelte'
 
   import {
+    activeSessionId,
     backendHealth,
     isLoadingModel,
     modelCatalogError,
     modelCatalogStore,
+    pinSessionModel,
     refreshModelCatalog,
+    refreshSessions,
+    sessions,
     switchModel,
   } from '../stores'
   import type { ModelCatalogEntry } from '../api'
@@ -55,6 +59,26 @@
     } finally {
       switching = null
     }
+  }
+
+  /** Pin this model to the active session — the backend will hot-swap to
+   *  it on the next message if it isn't already loaded. */
+  async function pinForSession(entry: ModelCatalogEntry, e: MouseEvent) {
+    e.stopPropagation()
+    if (!$activeSessionId) return
+    try {
+      await pinSessionModel(entry.filename)
+      await refreshSessions()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  let currentSession = $derived(
+    $sessions.find((s) => s.id === $activeSessionId) ?? null,
+  )
+  function isPinnedToActive(entry: ModelCatalogEntry): boolean {
+    return currentSession ? currentSession.model_name === entry.filename : false
   }
 
   function sizeLabel(bytes: number | null, kind: 'preset' | 'local'): string {
@@ -111,7 +135,7 @@
       <ul>
         {#each $modelCatalogStore.entries as entry (entry.name)}
           {@const isSwitchingThis = switching === entry.name}
-          <li>
+          <li class="row-wrap">
             <button
               class="row"
               class:loaded={entry.loaded}
@@ -159,6 +183,17 @@
                 {/if}
               </span>
             </button>
+            {#if $activeSessionId}
+              <button
+                class="pin"
+                class:pinned={isPinnedToActive(entry)}
+                onclick={(e) => pinForSession(entry, e)}
+                title={isPinnedToActive(entry) ? 'Pinned to this session' : 'Pin to this session'}
+                disabled={!!switching || $isLoadingModel}
+              >
+                📌
+              </button>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -321,6 +356,39 @@
     font-size: 12px;
     color: var(--fg-muted);
     flex-shrink: 0;
+  }
+
+  .row-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .row-wrap > .row {
+    flex: 1;
+  }
+  .pin {
+    all: unset;
+    cursor: pointer;
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--fg-dim);
+    font-size: 13px;
+    opacity: 0.4;
+    transition: opacity 100ms ease, background 100ms ease;
+  }
+  .pin:hover:not(:disabled) {
+    opacity: 1;
+    background: var(--bg-elev);
+  }
+  .pin.pinned {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .pin:disabled {
+    cursor: not-allowed;
   }
 
   .spinner {

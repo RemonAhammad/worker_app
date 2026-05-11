@@ -11,6 +11,7 @@
     pingHealth,
     refreshMemories,
     refreshModelCatalog,
+    refreshPersistentAllow,
     refreshSessions,
     refreshWorkspace,
     openSession,
@@ -27,6 +28,7 @@
       const list = await refreshSessions()
       await refreshMemories()
       await refreshWorkspace().catch(() => {})
+      await refreshPersistentAllow().catch(() => {})
       // refreshModelCatalog records its own error in modelCatalogError; no
       // need to swallow exceptions here.
       await refreshModelCatalog()

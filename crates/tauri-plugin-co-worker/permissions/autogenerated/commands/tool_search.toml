@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-tool-search"
+description = "Enables the tool_search command without any pre-configured scope."
+commands.allow = ["tool_search"]
+
+[[permission]]
+identifier = "deny-tool-search"
+description = "Denies the tool_search command without any pre-configured scope."
+commands.deny = ["tool_search"]

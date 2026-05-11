@@ -29,6 +29,10 @@ permissions = [
     "allow-tool-delete-path",
     "allow-tool-move-path",
     "allow-tool-create-dir",
+    "allow-tool-search",
+    "allow-tool-preview-write",
+    "allow-get-auto-allow",
+    "allow-set-auto-allow",
     "allow-agent-send",
     "allow-agent-continue",
 ]

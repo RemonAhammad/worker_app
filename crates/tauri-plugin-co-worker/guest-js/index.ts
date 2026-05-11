@@ -168,6 +168,27 @@ export interface CreateDirResult {
   path: string
 }
 
+export interface SearchMatch {
+  path: string
+  line_number: number
+  line: string
+}
+
+export interface SearchResult {
+  query: string
+  matches: SearchMatch[]
+  truncated: boolean
+  files_scanned: number
+}
+
+export interface WritePreview {
+  path: string
+  exists: boolean
+  diff: string
+  old_bytes: number
+  new_bytes: number
+}
+
 // --- Agent loop ---
 
 export interface ParsedToolCall {
@@ -370,6 +391,36 @@ export function toolMovePath(from: string, to: string): Promise<MoveResult> {
 
 export function toolCreateDir(path: string): Promise<CreateDirResult> {
   return call('tool_create_dir', { path })
+}
+
+export function toolSearch(
+  query: string,
+  opts?: { path?: string; maxResults?: number; caseInsensitive?: boolean },
+): Promise<SearchResult> {
+  return call('tool_search', {
+    query,
+    path: opts?.path,
+    maxResults: opts?.maxResults,
+    caseInsensitive: opts?.caseInsensitive,
+  })
+}
+
+/** Diff preview used by the approval card BEFORE the model's write is run. */
+export function toolPreviewWrite(
+  path: string,
+  content: string,
+): Promise<WritePreview> {
+  return call('tool_preview_write', { path, content })
+}
+
+// ----- persistent allow-list -----
+
+export function getAutoAllow(): Promise<string[]> {
+  return call('get_auto_allow')
+}
+
+export function setAutoAllow(tools: string[]): Promise<string[]> {
+  return call('set_auto_allow', { tools })
 }
 
 // ----- agent loop -----

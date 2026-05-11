@@ -30,6 +30,10 @@ Default permissions for the co-worker plugin. Allows every command in the surfac
 - `allow-tool-delete-path`
 - `allow-tool-move-path`
 - `allow-tool-create-dir`
+- `allow-tool-search`
+- `allow-tool-preview-write`
+- `allow-get-auto-allow`
+- `allow-set-auto-allow`
 - `allow-agent-send`
 - `allow-agent-continue`
 
@@ -246,6 +250,32 @@ Enables the delete_session command without any pre-configured scope.
 <td>
 
 Denies the delete_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-get-auto-allow`
+
+</td>
+<td>
+
+Enables the get_auto_allow command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-get-auto-allow`
+
+</td>
+<td>
+
+Denies the get_auto_allow command without any pre-configured scope.
 
 </td>
 </tr>
@@ -513,6 +543,32 @@ Denies the send_message command without any pre-configured scope.
 <tr>
 <td>
 
+`co-worker:allow-set-auto-allow`
+
+</td>
+<td>
+
+Enables the set_auto_allow command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-set-auto-allow`
+
+</td>
+<td>
+
+Denies the set_auto_allow command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `co-worker:allow-set-base-url`
 
 </td>
@@ -695,6 +751,32 @@ Denies the tool_move_path command without any pre-configured scope.
 <tr>
 <td>
 
+`co-worker:allow-tool-preview-write`
+
+</td>
+<td>
+
+Enables the tool_preview_write command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-preview-write`
+
+</td>
+<td>
+
+Denies the tool_preview_write command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `co-worker:allow-tool-read-file`
 
 </td>
@@ -714,6 +796,32 @@ Enables the tool_read_file command without any pre-configured scope.
 <td>
 
 Denies the tool_read_file command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:allow-tool-search`
+
+</td>
+<td>
+
+Enables the tool_search command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`co-worker:deny-tool-search`
+
+</td>
+<td>
+
+Denies the tool_search command without any pre-configured scope.
 
 </td>
 </tr>

@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { agentSteps, autoApprove, pendingApproval } from '../stores'
+  import {
+    agentSteps,
+    approvalDiff,
+    autoApprove,
+    pendingApproval,
+    persistentAllow,
+    togglePersistentAllow,
+  } from '../stores'
 
   function shortArgs(args: Record<string, unknown>): string {
     // Show the most identifying fields first.
@@ -81,13 +88,39 @@
       <strong>The assistant wants to run</strong>
       <code>{c.name}</code>
     </div>
-    <pre class="args">{JSON.stringify(c.arguments, null, 2)}</pre>
-    {#if isMutating(c.name)}
-      <label class="auto">
-        <input type="checkbox" bind:checked={$autoApprove} />
-        Allow all writes for the rest of this turn
-      </label>
+
+    {#if $approvalDiff}
+      {@const d = $approvalDiff}
+      <div class="diff-meta">
+        <code>{d.path}</code>
+        {#if d.exists}
+          <span class="dim">· edit: {d.old_bytes} → {d.new_bytes} bytes</span>
+        {:else}
+          <span class="dim">· new file ({d.new_bytes} bytes)</span>
+        {/if}
+      </div>
+      <pre class="diff">{d.diff}</pre>
+    {:else}
+      <pre class="args">{JSON.stringify(c.arguments, null, 2)}</pre>
     {/if}
+
+    {#if isMutating(c.name)}
+      <div class="approval-knobs">
+        <label class="knob">
+          <input type="checkbox" bind:checked={$autoApprove} />
+          Allow all writes for the rest of this turn
+        </label>
+        <label class="knob">
+          <input
+            type="checkbox"
+            checked={$persistentAllow.has(c.name)}
+            onchange={() => void togglePersistentAllow(c.name)}
+          />
+          Always allow <code>{c.name}</code> (across sessions)
+        </label>
+      </div>
+    {/if}
+
     <div class="approval-actions">
       <button class="primary" onclick={() => r(true)}>Allow</button>
       <button class="ghost" onclick={() => r(false)}>Deny</button>
@@ -210,11 +243,41 @@
     gap: 8px;
     margin-top: 4px;
   }
-  .auto {
+  .approval-knobs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .knob {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 12px;
     color: var(--fg-muted);
   }
+
+  .diff-meta {
+    font-size: 12px;
+    color: var(--fg-muted);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .diff-meta .dim { color: var(--fg-dim); }
+  .diff {
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+  /* Color-code diff lines. We render a leading `+ `, `- `, or `  ` per
+     line; CSS doesn't have line-prefix selectors, so this is just a tint
+     applied uniformly. */
 </style>
