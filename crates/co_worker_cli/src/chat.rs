@@ -5,14 +5,12 @@
 //! a usage summary.
 
 use anyhow::Result;
+use co_worker_client::{Client, Message, Role, Session};
 use colored::Colorize;
 use rustyline::error::ReadlineError;
 use rustyline::history::FileHistory;
 use rustyline::{Config, EditMode, Editor};
 use uuid::Uuid;
-
-use crate::client::Client;
-use crate::types::{Role, Session};
 
 pub struct ChatOptions {
     pub max_tokens: u32,
@@ -23,19 +21,27 @@ pub struct ChatOptions {
 }
 
 pub async fn run(client: Client, opts: ChatOptions) -> Result<()> {
-    let session = match opts.resume {
+    let session: Session = match opts.resume {
         Some(id) => {
             let existing = client.get_session(id).await?;
             println!(
                 "{} {} ({} messages)",
                 "Resumed".green().bold(),
-                existing.session.title.bold(),
+                existing.title.bold(),
                 existing.messages.len()
             );
             for m in &existing.messages {
                 render_history_entry(m);
             }
-            existing.session
+            Session {
+                id: existing.id,
+                title: existing.title,
+                model_name: existing.model_name,
+                system_prompt: existing.system_prompt,
+                created_at: existing.created_at,
+                updated_at: existing.updated_at,
+                metadata: existing.metadata,
+            }
         }
         None => {
             let title = opts
@@ -135,7 +141,7 @@ async fn send_one(
     Ok(())
 }
 
-fn render_history_entry(m: &crate::types::Message) {
+fn render_history_entry(m: &Message) {
     match m.role {
         Role::User => {
             println!("{} {}", "›".cyan().bold(), m.content);

@@ -1,0 +1,32 @@
+{
+  "name": "tauri-plugin-co-worker",
+  "version": "0.1.0",
+  "description": "Tauri plugin: chat client for the co_worker_lite local LLM backend",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "main": "./dist-js/index.js",
+  "module": "./dist-js/index.js",
+  "types": "./dist-js/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-js/index.d.ts",
+      "import": "./dist-js/index.js"
+    }
+  },
+  "files": [
+    "dist-js",
+    "guest-js",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "tsc"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

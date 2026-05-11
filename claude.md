@@ -1,57 +1,74 @@
-# co_worker_cli
+# co_worker_cli — engineering map
 
-Interactive CLI client for the [co_worker_lite](../co_worker_lite) local LLM backend. User-facing docs live in [README.md](README.md); this file is the engineering map.
+Monorepo for every **client** that talks to the [`co_worker_lite`](../co_worker_lite) backend. Holds a CLI binary, a reusable Tauri plugin (Rust + npm package), and a reference desktop app built on that plugin. User-facing docs live in [README.md](README.md).
 
-## Scope
+## Workspace layout
 
-Thin async HTTP client + a rustyline REPL. No persistence beyond the input-history file at `~/.co_worker_cli_history`. State (sessions, messages) lives in the lite backend — the CLI is stateless.
-
-## Build, run, test
-
-```sh
-cargo build
-cargo run --release                   # opens chat REPL against localhost:6969
-cargo run --release -- ask "..."      # one-shot
-CO_WORKER_URL=http://host:6969 cargo run --release
+```text
+co_worker_cli/
+├── Cargo.toml                          # cargo workspace
+├── package.json                        # npm workspaces
+├── crates/
+│   ├── co_worker_client/               # shared async HTTP client + wire types
+│   ├── co_worker_cli/                  # terminal binary (clap + rustyline + colored)
+│   └── tauri-plugin-co-worker/         # reusable Tauri plugin
+│       ├── src/                        #   Rust: lib.rs, commands.rs, error.rs
+│       ├── guest-js/                   #   TS bindings (published as npm package)
+│       └── permissions/default.toml    #   Tauri 2 permissions surface
+└── apps/
+    └── desktop/                        # Tauri 2 + Svelte 5 reference app
+        ├── src/                        #   Svelte UI
+        └── src-tauri/                  #   Tauri shell — just `.plugin(init())`
 ```
 
-The CLI does not have automated tests. Smoke-test paths: `health`, `models`, `sessions list`, `ask`, `chat` (manual). All depend on a running lite backend.
+## Build, run
 
-## Layout
+```sh
+npm install                  # one-time
+npm run plugin:build         # tsc on the plugin's guest-js → dist-js
+npm run desktop:dev          # tauri dev (opens the window)
+cargo run -p co_worker_cli   # the terminal client
+cargo build --workspace      # everything Rust
+```
 
-- [src/main.rs](src/main.rs) — clap parser, subcommand dispatch, preflight health check, one-shot `ask`, session management commands.
-- [src/client.rs](src/client.rs) — async `reqwest::Client` wrapper. All public methods return `anyhow::Result<T>`. On non-2xx, the backend's `{"error":{...}}` body is parsed and surfaced in the message. 600-second timeout because inference can be slow.
-- [src/chat.rs](src/chat.rs) — interactive REPL. Owns the rustyline `Editor`, dispatches slash commands, renders output with `colored`. Persists input history.
-- [src/types.rs](src/types.rs) — wire types that match `co_worker_lite::types`. Deliberately duplicated rather than imported from the backend crate so the CLI doesn't drag in llama-cpp-2 / sqlx.
+The desktop app, the plugin's Rust side, and the CLI all share `co_worker_client` — change the wire surface in **one** place.
 
-## Conventions
+## Architecture conventions
 
-- **`anyhow::Result` everywhere**, including in library modules. The CLI is a single binary, so no need for the structured `thiserror` enum the backend uses.
-- **`colored::Colorize` for terminal output.** Colors auto-disable when stdout isn't a TTY, so piping to files / other tools produces plain text.
-- **No streaming yet.** The backend doesn't expose streaming in iteration 1; the CLI just blocks on the response. Add when the backend gains it.
-- **Backend URL precedence** (highest first): `--url`, `CO_WORKER_URL` env var, `DEFAULT_URL` constant in [src/main.rs](src/main.rs:23) (currently `http://localhost:6969`).
+- **One Rust client, many consumers.** [`crates/co_worker_client`](crates/co_worker_client/src/lib.rs) is the single source of truth for the HTTP surface and wire types. Both the CLI and the Tauri plugin depend on it. Backend changes flow through here first.
+- **Tauri plugin = the reusable surface.** [`crates/tauri-plugin-co-worker`](crates/tauri-plugin-co-worker) bundles Rust commands and matching TypeScript bindings (`guest-js/index.ts`) into one publishable unit. Other Tauri apps consume it via `cargo add` + `npm install` + `.plugin(init())` + `import from 'tauri-plugin-co-worker'`.
+- **Commands hold `Arc<PluginState>`.** The plugin manages a `tokio::sync::Mutex<Client>`. Commands briefly lock, clone the cheap reqwest client (internal `Arc`s), release, then `.await` — never holding the lock across an HTTP call.
+- **Error type crosses the bridge as `{ kind, message }`.** [`tauri-plugin-co-worker/src/error.rs`](crates/tauri-plugin-co-worker/src/error.rs) hand-implements `Serialize` so the TS side gets a stable shape. The frontend's `formatError` in [`stores.ts`](apps/desktop/src/lib/stores.ts) parses it.
+- **Frontend is component + stores, no router.** Single-window app. [`src/lib/stores.ts`](apps/desktop/src/lib/stores.ts) holds every reactive piece of state and every mutation helper; components only read stores and call helpers.
 
-## Wire-type drift
+## Adding a new endpoint
 
-If [co_worker_lite/src/types.rs](../co_worker_lite/src/types.rs) changes:
+End-to-end change list (do them in this order so each step compiles):
 
-- Adding fields to existing structs is safe — `serde` ignores unknown fields by default on the CLI side, and missing fields use `#[serde(default)]` where present.
-- Renaming or changing a field's JSON shape requires the corresponding edit in [src/types.rs](src/types.rs). There is no compile-time link between the two crates.
-- New endpoints → add a method to [src/client.rs](src/client.rs) (`get_json` / `post_json` helpers cover most shapes) and a subcommand or REPL command if it's user-facing.
+1. **Backend** — add the route + handler in `co_worker_lite/src/api/`.
+2. **Shared Rust client** — add the method on `Client` in [`crates/co_worker_client/src/lib.rs`](crates/co_worker_client/src/lib.rs) plus any new request/response types (derive both `Serialize` and `Deserialize` — the plugin's commands need `Serialize`).
+3. **Tauri plugin Rust** — add a `#[tauri::command]` wrapper in [`crates/tauri-plugin-co-worker/src/commands.rs`](crates/tauri-plugin-co-worker/src/commands.rs) and list it in `tauri::generate_handler!` in [`lib.rs`](crates/tauri-plugin-co-worker/src/lib.rs).
+4. **Tauri plugin build.rs** — append the command name to the `COMMANDS` array in [`build.rs`](crates/tauri-plugin-co-worker/build.rs).
+5. **Tauri plugin permissions** — append `allow-<command_name>` to [`permissions/default.toml`](crates/tauri-plugin-co-worker/permissions/default.toml).
+6. **TS bindings** — add the typed wrapper in [`guest-js/index.ts`](crates/tauri-plugin-co-worker/guest-js/index.ts). Mirror the Rust shape one-for-one.
+7. **(Optional) CLI** — add a subcommand in [`crates/co_worker_cli/src/main.rs`](crates/co_worker_cli/src/main.rs).
+8. **(Optional) Desktop UI** — add a store helper in [`apps/desktop/src/lib/stores.ts`](apps/desktop/src/lib/stores.ts) and wire it into a component.
 
-## Slash command pattern
+## Tauri 2 specifics
 
-Commands are matched in [src/chat.rs](src/chat.rs) `handle_slash_command`. To add one:
+- Commands are plain `pub async fn` — **no `R: Runtime` generic**. The plugin builder is runtime-generic; commands aren't, otherwise `generate_handler!` can't infer types.
+- Permissions live in [`permissions/default.toml`](crates/tauri-plugin-co-worker/permissions/default.toml). `build.rs` runs `tauri_plugin::Builder::new(COMMANDS).build()` which auto-generates per-command `allow-*` / `deny-*` permissions under `permissions/autogenerated/`. The `default` bundle then references them.
+- The desktop app grants the bundle via [`apps/desktop/src-tauri/capabilities/default.json`](apps/desktop/src-tauri/capabilities/default.json) → `"permissions": ["core:default", "co-worker:default"]`.
+- **Placeholder icons.** `icon.icns` / `icon.ico` are zero-byte; they pass `tauri dev` but `tauri build` will refuse them. Regenerate via `npm --workspace co_worker_desktop run tauri icon <source.png>` before shipping.
 
-1. Add the match arm.
-2. Add a row in `print_help()`.
-3. Document in [README.md](README.md).
+## Svelte 5 specifics
 
-Return `ControlFlow::Quit` to break the REPL loop, `ControlFlow::Continue` to keep it running.
+- Components use the **runes API** (`$props`, `$state`, `$derived`, `$effect`) — not `export let` or `$:`.
+- `onMount` callbacks that need cleanup must be **synchronous** with the cleanup returned directly. The "kick off async then return cleanup" pattern lives in [`App.svelte`](apps/desktop/src/App.svelte) `onMount`.
+- The list row in [`Sidebar.svelte`](apps/desktop/src/lib/components/Sidebar.svelte) is a `<div role="button" tabindex="0">`, **not** a `<button>`, because it contains a nested delete button. Keep it that way.
 
-## When making changes
+## Trade-offs worth knowing
 
-- New subcommand → extend the `Command` enum in [src/main.rs](src/main.rs) and add a `cmd_*` async fn.
-- New REPL slash command → see "Slash command pattern" above.
-- Auth / headers (when the backend grows them) → add a builder param to `Client::new` in [src/client.rs](src/client.rs) and thread through `--token` / `CO_WORKER_TOKEN`.
-- Streaming (when the backend exposes it) → switch `send_message` to consume an SSE stream; render tokens incrementally in [src/chat.rs](src/chat.rs).
+- **No streaming yet.** Replies block until complete. When the backend gains streaming, swap `sendMessage` for an event-listener flow in the plugin + a token-append accumulator in [`stores.ts`](apps/desktop/src/lib/stores.ts). The wire types stay.
+- **Optimistic UI.** The user message is pushed into `activeMessages` before the request returns; on failure it's removed and the error surfaces in `lastError`. Keep this invariant if you add retries.
+- **Wire types are duplicated by hand on the TS side.** The Rust types in `co_worker_client` and the TS interfaces in `guest-js/index.ts` are not generated from each other. A code-gen step (e.g. `ts-rs`) would close that gap but adds toolchain weight; for now keep them manually in lock-step.

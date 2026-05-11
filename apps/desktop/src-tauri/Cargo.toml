@@ -1,0 +1,23 @@
+[package]
+name = "co_worker_desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Reference Tauri desktop app for the co_worker_lite backend"
+
+[lib]
+name = "co_worker_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "co_worker_desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+tauri = { workspace = true, features = [] }
+tauri-plugin-co-worker = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

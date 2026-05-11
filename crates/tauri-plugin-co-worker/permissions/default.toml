@@ -1,0 +1,20 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Default permissions for the co-worker plugin. Allows every command in the surface."
+permissions = [
+    "allow-set-base-url",
+    "allow-get-base-url",
+    "allow-health",
+    "allow-list-models",
+    "allow-list-sessions",
+    "allow-get-session",
+    "allow-create-session",
+    "allow-delete-session",
+    "allow-debug-session",
+    "allow-send-message",
+    "allow-chat",
+    "allow-list-memories",
+    "allow-create-memory",
+    "allow-delete-memory",
+]

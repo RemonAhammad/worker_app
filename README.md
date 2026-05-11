@@ -1,103 +1,142 @@
 # co_worker_cli
 
-Interactive terminal client for the [co_worker_lite](../co_worker_lite) local
-LLM backend. Open a chat REPL, send one-shot prompts, manage sessions.
+Monorepo for the **co_worker** client: a CLI, a reusable Tauri plugin, and a
+reference desktop app — all talking to the
+[`co_worker_lite`](../co_worker_lite) local LLM backend.
 
-## Build & run
+```text
+co_worker_cli/
+├── crates/
+│   ├── co_worker_client/           # shared async HTTP client (Rust)
+│   ├── co_worker_cli/              # terminal binary (rustyline REPL + subcommands)
+│   └── tauri-plugin-co-worker/     # reusable Tauri plugin (Rust + npm package)
+└── apps/
+    └── desktop/                    # reference Tauri 2 + Svelte 5 desktop app
+        ├── src/                    #   Svelte UI (Sidebar, ChatView, …)
+        └── src-tauri/              #   Tauri shell
+```
+
+## Quick start
+
+Make sure the backend is running first (defaults to port 6969):
 
 ```sh
+cd ../co_worker_lite
 cargo run --release
 ```
 
-Defaults to `http://localhost:6969` (the lite backend's default). Override
-with `--url` or the `CO_WORKER_URL` env var:
+Then in this repo:
 
 ```sh
-CO_WORKER_URL=http://192.168.1.10:6969 co_worker_cli
-co_worker_cli --url http://localhost:9090 chat
+npm install                 # workspaces: plugin TS bindings + desktop app
+npm run plugin:build        # compile the plugin's TypeScript bindings
+npm run desktop:dev         # launch the Tauri desktop app
+
+# or use the CLI:
+cargo run -p co_worker_cli  # interactive REPL
 ```
 
-## Subcommands
+## Desktop app
 
+A two-pane Tauri desktop app:
+
+- **Left rail** — conversation list (newest first). Click `+ New chat` for a
+  fresh session, click any row to switch, hover for a delete button.
+- **Main area** — chat view with optimistic user messages, a "thinking…"
+  indicator while the model generates, and a sticky bottom composer
+  (`Enter` to send, `Shift+Enter` for newline).
+- **Memories drawer** — opened from the header. Manual + auto-extracted
+  facts that the backend injects into every conversation's system prompt.
+- **Status bar** — model name and backend health, refreshed every 15s.
+
+All wire calls are typed via `tauri-plugin-co-worker` (see below).
+
+## Using the Tauri plugin in **another** project
+
+The plugin is the modular surface. In any Tauri 2 app:
+
+```toml
+# their Cargo.toml
+[dependencies]
+tauri-plugin-co-worker = { path = "../co_worker_cli/crates/tauri-plugin-co-worker" }
+# (or, once published: tauri-plugin-co-worker = "0.1")
 ```
-co_worker_cli                       open interactive chat (default)
-co_worker_cli chat                  same, with options
-co_worker_cli ask "prompt"          one-shot — send and exit
-co_worker_cli sessions list         list recent sessions
-co_worker_cli sessions show <id>    print full message history
-co_worker_cli sessions delete <id>  delete a session
-co_worker_cli health                ping the backend
-co_worker_cli models                list models in the backend's models dir
+
+```rust
+// their src-tauri/src/lib.rs
+fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_co_worker::init())
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
 ```
 
-`co_worker_cli --help` and `co_worker_cli <subcommand> --help` show every flag.
+```jsonc
+// their src-tauri/capabilities/default.json
+{
+  "permissions": ["core:default", "co-worker:default"]
+}
+```
 
-## Interactive chat
+```ts
+// their frontend
+import { health, sendMessage, listSessions } from 'tauri-plugin-co-worker'
+
+const h = await health()              // { status, model, loaded }
+const ss = await listSessions()       // Session[]
+const r = await sendMessage(ss[0].id, 'hello')   // { message, usage }
+```
+
+The plugin defaults to `http://localhost:6969` and can be retargeted at
+runtime via `setBaseUrl('https://...')`. The `CO_WORKER_URL` env var
+overrides the default at app startup.
+
+## CLI
 
 ```sh
-co_worker_cli chat --system "You are a helpful coding assistant." \
-                   --temperature 0.7 --max-tokens 1024
-```
-
-Once inside:
-
-```
-› your message
-assistant (42 prompt, 88 completion, 1.4s)
-... reply ...
-```
-
-Slash commands inside the REPL:
-
-| Command       | Action                                          |
-| ------------- | ----------------------------------------------- |
-| `/help`       | show command list                               |
-| `/session`    | show current session id, title, model, created  |
-| `/sessions`   | list recent sessions                            |
-| `/health`     | ping the backend                                |
-| `/clear`      | clear the screen                                |
-| `/exit`       | quit (also Ctrl-D)                              |
-
-History (your past prompts) is persisted to `~/.co_worker_cli_history`
-across runs — use ↑/↓ to recall.
-
-## One-shot
-
-```sh
-co_worker_cli ask "Explain Rust's borrow checker in two sentences."
-
-# pipe a long prompt
-cat prompt.txt | co_worker_cli ask
-
-# reuse a session for context
-co_worker_cli ask --session <uuid> "and what about Send/Sync?"
-```
-
-## Resuming a session
-
-```sh
+co_worker_cli                       # interactive REPL (default)
+co_worker_cli ask "explain rust borrow checker"
 co_worker_cli sessions list
-co_worker_cli chat --resume <uuid>      # past history is replayed
+co_worker_cli sessions show <id>
+co_worker_cli sessions debug <id>   # what the model will actually see
+co_worker_cli sessions delete <id>
+co_worker_cli memories list
+co_worker_cli memories add "my name is Rimon"
+co_worker_cli memories delete <id>
+co_worker_cli health
+co_worker_cli models
 ```
 
-## Project layout
+Defaults to `http://localhost:6969`; override with `--url` or
+`CO_WORKER_URL`. Input history persists at `~/.co_worker_cli_history`.
 
-```
-co_worker_cli/
-├── Cargo.toml
-├── claude.md
-└── src/
-    ├── main.rs    # clap parsing + subcommand dispatch
-    ├── client.rs  # async HTTP client
-    ├── chat.rs    # interactive REPL (rustyline + colored)
-    └── types.rs   # wire types matching the backend API
+## Scripts
+
+```sh
+npm run plugin:build        # build TypeScript bindings of the plugin
+npm run desktop:dev         # tauri dev (opens the desktop window)
+npm run desktop:build       # production bundle (needs real icons — see below)
+cargo build --workspace     # all four crates
+cargo run -p co_worker_cli  # CLI
 ```
 
 ## Notes
 
-- Inference can take a while; the HTTP client uses a 600-second timeout.
-- Color output auto-disables when stdout isn't a TTY, so piping into other
-  tools produces clean, plain text.
+- **Placeholder icons.** `apps/desktop/src-tauri/icons/icon.icns` and
+  `icon.ico` are zero-byte placeholders that satisfy the bundle config for
+  `tauri dev`. Before `tauri build`, regenerate full icon sets from a
+  source PNG with `npm --workspace co_worker_desktop run tauri icon path/to/source.png`.
+- **No streaming.** The backend doesn't stream replies yet, so the UI shows
+  a thinking indicator until the full response arrives. When the backend
+  gains streaming, only `sendInActive`/`chat` in
+  [`apps/desktop/src/lib/stores.ts`](apps/desktop/src/lib/stores.ts) needs
+  to change.
+- **Shared types.** The wire shapes live in
+  [`crates/co_worker_client/src/lib.rs`](crates/co_worker_client/src/lib.rs)
+  on the Rust side and
+  [`crates/tauri-plugin-co-worker/guest-js/index.ts`](crates/tauri-plugin-co-worker/guest-js/index.ts)
+  on the TypeScript side. They must move together when the backend changes.
 
 ## License
 

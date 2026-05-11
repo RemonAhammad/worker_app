@@ -1,22 +1,17 @@
-//! co_worker_cli — interactive client for the co_worker_lite backend.
+//! co_worker_cli — interactive terminal client for the co_worker_lite backend.
 //!
-//! Default subcommand is `chat`, which opens a REPL backed by a freshly
-//! created session. Other subcommands cover one-shot prompts, session
-//! management, and a health check. The backend URL defaults to the address
-//! the lite project listens on locally; override with `--url` or
-//! `CO_WORKER_URL`.
+//! All HTTP is delegated to the shared `co_worker_client` crate so this binary
+//! and the Tauri plugin share one source of truth for the wire surface.
 
 mod chat;
-mod client;
-mod types;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use co_worker_client::{Client, Role};
 use colored::Colorize;
 use uuid::Uuid;
 
 use crate::chat::{ChatOptions, run as run_chat};
-use crate::client::Client;
 
 /// Default backend address; matches the co_worker_lite default.
 const DEFAULT_URL: &str = "http://localhost:6969";
@@ -77,6 +72,11 @@ enum Command {
         #[command(subcommand)]
         action: SessionAction,
     },
+    /// Manage persistent memories (facts injected into every session).
+    Memories {
+        #[command(subcommand)]
+        action: MemoryAction,
+    },
     /// Ping the backend and print the loaded model.
     Health,
     /// List models present in the backend's models directory.
@@ -96,12 +96,24 @@ enum SessionAction {
     Show { id: Uuid },
     /// Delete a session.
     Delete { id: Uuid },
+    /// Print the exact context that would be sent to the model next.
+    Debug { id: Uuid },
+}
+
+#[derive(Subcommand, Debug)]
+enum MemoryAction {
+    /// List every memory in the order they'll be injected.
+    List,
+    /// Add a new memory.
+    Add { content: String },
+    /// Delete a memory.
+    Delete { id: Uuid },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let client = Client::new(&cli.url)?;
+    let client = Client::new(&cli.url).context("building http client")?;
 
     match cli.command.unwrap_or(Command::Chat {
         resume: None,
@@ -147,6 +159,12 @@ async fn main() -> Result<()> {
             SessionAction::List { limit, offset } => cmd_list_sessions(client, limit, offset).await,
             SessionAction::Show { id } => cmd_show_session(client, id).await,
             SessionAction::Delete { id } => cmd_delete_session(client, id).await,
+            SessionAction::Debug { id } => cmd_debug_session(client, id).await,
+        },
+        Command::Memories { action } => match action {
+            MemoryAction::List => cmd_list_memories(client).await,
+            MemoryAction::Add { content } => cmd_add_memory(client, content).await,
+            MemoryAction::Delete { id } => cmd_delete_memory(client, id).await,
         },
         Command::Health => cmd_health(client).await,
         Command::Models => cmd_models(client).await,
@@ -175,7 +193,7 @@ async fn preflight(client: &Client) -> Result<()> {
                 "{} is the lite backend running? try `cargo run --release` in co_worker_lite",
                 "hint:".yellow().bold()
             );
-            Err(e)
+            Err(e.into())
         }
     }
 }
@@ -228,23 +246,23 @@ async fn cmd_show_session(client: Client, id: Uuid) -> Result<()> {
     println!(
         "{} {}\n{} {}\n{} {}",
         "id     ".dimmed(),
-        s.session.id,
+        s.id,
         "title  ".dimmed(),
-        s.session.title,
+        s.title,
         "model  ".dimmed(),
-        s.session.model_name
+        s.model_name
     );
-    if let Some(prompt) = &s.session.system_prompt {
+    if let Some(prompt) = &s.system_prompt {
         println!("{} {}", "system ".dimmed(), prompt);
     }
     println!("{} {}", "msgs   ".dimmed(), s.messages.len());
     println!();
     for m in &s.messages {
         let label = match m.role {
-            types::Role::System => "system".magenta().bold(),
-            types::Role::User => "user".cyan().bold(),
-            types::Role::Assistant => "assistant".green().bold(),
-            types::Role::Tool => "tool".yellow().bold(),
+            Role::System => "system".magenta().bold(),
+            Role::User => "user".cyan().bold(),
+            Role::Assistant => "assistant".green().bold(),
+            Role::Tool => "tool".yellow().bold(),
         };
         println!("{label} {}", format!("({}t)", m.token_count).dimmed());
         println!("{}\n", m.content);
@@ -254,6 +272,66 @@ async fn cmd_show_session(client: Client, id: Uuid) -> Result<()> {
 
 async fn cmd_delete_session(client: Client, id: Uuid) -> Result<()> {
     client.delete_session(id).await?;
+    println!("{} {id}", "deleted".green().bold());
+    Ok(())
+}
+
+async fn cmd_debug_session(client: Client, id: Uuid) -> Result<()> {
+    let dbg = client.debug_session(id).await?;
+    println!(
+        "{} {} {} {}/{} {} {} memories",
+        "ctx".dimmed(),
+        dbg.context_length,
+        "·".dimmed(),
+        dbg.prompt_tokens_estimate,
+        dbg.context_length,
+        "·".dimmed(),
+        dbg.memories_injected,
+    );
+    println!();
+    for t in &dbg.turns {
+        let label = match t.role {
+            Role::System => "system".magenta().bold(),
+            Role::User => "user".cyan().bold(),
+            Role::Assistant => "assistant".green().bold(),
+            Role::Tool => "tool".yellow().bold(),
+        };
+        println!("{label}");
+        println!("{}\n", t.content);
+    }
+    Ok(())
+}
+
+async fn cmd_list_memories(client: Client) -> Result<()> {
+    let memories = client.list_memories().await?;
+    if memories.is_empty() {
+        println!("{}", "(no memories)".dimmed());
+        return Ok(());
+    }
+    for m in memories {
+        let badge = if m.source == "auto" {
+            "auto".yellow()
+        } else {
+            "manual".cyan()
+        };
+        println!(
+            "{}  {}  {}",
+            m.id.to_string().dimmed(),
+            badge,
+            m.content
+        );
+    }
+    Ok(())
+}
+
+async fn cmd_add_memory(client: Client, content: String) -> Result<()> {
+    let m = client.create_memory(&content).await?;
+    println!("{} {} {}", "saved".green().bold(), m.id.to_string().dimmed(), m.content);
+    Ok(())
+}
+
+async fn cmd_delete_memory(client: Client, id: Uuid) -> Result<()> {
+    client.delete_memory(id).await?;
     println!("{} {id}", "deleted".green().bold());
     Ok(())
 }

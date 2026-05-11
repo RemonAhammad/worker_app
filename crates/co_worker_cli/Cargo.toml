@@ -1,43 +1,24 @@
 [package]
 name = "co_worker_cli"
-version = "0.1.0"
-edition = "2024"
-description = "Interactive CLI client for the co_worker_lite local LLM backend"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Interactive terminal client for the co_worker_lite local LLM backend"
 
 [[bin]]
 name = "co_worker_cli"
 path = "src/main.rs"
 
 [dependencies]
-# Async runtime
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+co_worker_client = { workspace = true }
 
-# CLI parsing
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+
 clap = { version = "4.6", features = ["derive", "env"] }
-
-# HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-
-# Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-
-# Interactive line editor with history
 rustyline = "18"
-
-# Terminal colors
 colored = "3"
-
-# Errors
-anyhow = "1"
-thiserror = "2"
-
-# Identifiers
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-
-[profile.release]
-opt-level = 3
-lto = "thin"
-codegen-units = 1

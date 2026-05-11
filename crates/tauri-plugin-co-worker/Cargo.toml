@@ -1,0 +1,24 @@
+[package]
+name = "tauri-plugin-co-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tauri plugin exposing the co_worker_lite chat backend to a desktop UI"
+repository = "https://github.com/anthropics/claude-code"
+links = "tauri-plugin-co-worker"
+
+[lib]
+name = "tauri_plugin_co_worker"
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-plugin = { workspace = true, features = ["build"] }
+
+[dependencies]
+co_worker_client = { workspace = true }
+tauri = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }

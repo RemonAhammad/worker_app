@@ -1,3 +1,11 @@
 /target
+**/target
+**/node_modules
+/dist
+**/dist
+**/dist-js
 .DS_Store
 .env
+
+# Tauri-generated
+apps/desktop/src-tauri/gen/

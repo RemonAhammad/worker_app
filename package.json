@@ -1,0 +1,17 @@
+{
+  "name": "co_worker_monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "co_worker_cli monorepo — Tauri plugin + reference desktop app + CLI",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "crates/tauri-plugin-co-worker",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "plugin:build": "npm --workspace tauri-plugin-co-worker run build",
+    "desktop:dev": "npm --workspace co_worker_desktop run tauri:dev",
+    "desktop:build": "npm --workspace co_worker_desktop run tauri:build"
+  }
+}
