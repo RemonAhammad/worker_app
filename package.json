@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "plugin:build": "npm --workspace tauri-plugin-co-worker run build",
-    "desktop:dev": "npm --workspace co_worker_desktop run tauri:dev",
-    "desktop:build": "npm --workspace co_worker_desktop run tauri:build"
+    "desktop:dev": "npm run plugin:build && npm --workspace co_worker_desktop run tauri:dev",
+    "desktop:build": "npm run plugin:build && npm --workspace co_worker_desktop run tauri:build"
   }
 }
